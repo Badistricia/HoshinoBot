@@ -25,7 +25,7 @@ service_collection = [
     Service("sr-twitter", help_="崩坏星穹铁道日服推特转发", enable_on_default=False, bundle="mihoyo"),
     Service("zzz-twitter", help_="绝区零日服推特转发", enable_on_default=False, bundle="mihoyo"),
     # Service("pripri-twitter", help_="番剧《公主代理人》官推转发", enable_on_default=False),
-    # Service("coffee-favorite-twitter", help_="咖啡精选画师推特转发", enable_on_default=False, bundle="artist"),
+    Service("coffee-favorite-twitter", help_="咖啡精选画师推特转发", enable_on_default=False, bundle="artist"),
     Service("moe-artist-twitter", help_="萌系画师推特转发", enable_on_default=False, bundle="artist"),
     # Service("depress-artist-twitter", help_="致郁系画师推特转发", enable_on_default=False, bundle="artist"),
 ]
