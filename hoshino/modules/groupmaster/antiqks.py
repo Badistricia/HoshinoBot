@@ -1,7 +1,7 @@
 import aiohttp
 from hoshino import R, Service, util
 
-sv = Service('antiqks', help_='识破骑空士的阴谋')
+sv = Service('antiqks', help_='识破骑空士的阴谋',enable_on_default=True)
 
 qksimg = R.img('antiqks.jpg').cqcode
 

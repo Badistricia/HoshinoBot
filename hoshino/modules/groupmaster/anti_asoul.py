@@ -2,7 +2,7 @@ from datetime import timedelta
 from hoshino import Service, priv, util
 from hoshino.typing import CQEvent, CQHttpError, MessageSegment as ms
 
-sv = Service('anti-asoul', enable_on_default=False)
+sv = Service('anti-asoul', enable_on_default=False,visible=False)
 
 @sv.on_keyword('嘉然', '然然', '嘉心糖', '嘉人')
 @sv.on_rex(r'(嘉[\.\s]*(然|人))|(嘉[\.\s]*心[\.\s]*糖)')

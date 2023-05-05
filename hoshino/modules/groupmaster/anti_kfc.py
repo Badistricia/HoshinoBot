@@ -3,7 +3,7 @@ from datetime import timedelta
 from hoshino import Service, priv, util
 from hoshino.typing import CQEvent, CQHttpError, MessageSegment as ms
 
-sv = Service('anti-kfc', enable_on_default=False)
+sv = Service('anti-kfc', enable_on_default=False,visible=False)
 
 CRAZY_THURSDAY_ALIAS = list(map(''.join, itertools.product(('疯狂', '狂乱'), ('星期四', '木曜日', '星期寺'))))
 THURSDAY_ALIAS = ['⭐期四', '⭐期4']
