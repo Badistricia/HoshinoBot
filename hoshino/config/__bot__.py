@@ -8,7 +8,7 @@ PORT = 8081
 HOST = '127.0.0.1'          # 本地部署使用此条配置（QQ客户端和bot端运行在同一台计算机）
 # HOST = '0.0.0.0'          # 开放公网访问使用此条配置（不安全）
 
-DEBUG = False               # 调试模式
+DEBUG = True               # 调试模式
 
 BLACK_LIST = [1974906693]   # 黑名单，权限为 BLACK = -999
 WHITE_LIST = []             # 白名单，权限为 WHITE = 51
@@ -86,7 +86,9 @@ MODULES_ON = {
     'yaowoyizhi',
     'dailywife',
     'custom',
-    'pokemon_whois'
+    'pokemon_whois',
+    # 'aoe4_watcher_bot',
+    'aoe_test'
 
 
 }
