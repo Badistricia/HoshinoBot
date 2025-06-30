@@ -57,6 +57,7 @@ def init() -> HoshinoBot:
     _bot.finish = HoshinoBot.finish
     _bot.silence = HoshinoBot.silence
 
+    nonebot.logger.addHandler(log.info_handler)
     nonebot.logger.addHandler(log.error_handler)
     nonebot.logger.addHandler(log.critical_handler)
 
