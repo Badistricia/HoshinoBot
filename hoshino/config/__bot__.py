@@ -44,51 +44,52 @@ RES_URL = 'http://127.0.0.1:5000/static/'
 
 
 MODULES_ON = {
-    'botmanage',
-    'dice',
-    'groupmaster', #群聊基础功能
+    # 'botmanage',
+    # 'dice',
+    # 'groupmaster', #群聊基础功能
     # 'hourcall', #报时功能
     # 'kancolle', #舰娘的远征
     # 'mikan', #蜜柑订阅番剧
     # 'pcrclanbattle',
-    'priconne',
-    'picfinder',
+    # 'priconne',
+    # 'picfinder',
     # 'setu',
     # 'translate',
     # 'twitter-v2',
-    'test',    #测试下看看
+    # 'test',    #测试下看看
 
 
 
 
-    'reload',#重启
-    'hiumsentences',#网抑云语录
-    'generator',#营销文生成等五个小功能
-    'eqa',#问答功能2
-    'fake_news',
-    'russian',#俄罗斯轮盘赌
+    # 'reload',#重启
+    # 'hiumsentences',#网抑云语录
+    # 'generator',#营销文生成等五个小功能
+    # 'eqa',#问答功能2
+    # 'fake_news',
+    # 'russian',#俄罗斯轮盘赌
     # 'picapi',#自定义拉取图片
     #'bilisearchspider',#b站订阅,
     # 'image_generate',#取代原image
-    'memberguess',#猜群友头像
-    'portune',#运势插件
-    'pcr_calendar',#全服务器通用日历表，关键词为日历
-    'xcw',#数个插件的混合，需要xcw资源包配合链接：https://pan.baidu.com/s/1tb0skZTs8NSHYZ-Tm3Cs0w 提取码：2333
-    'revgif',#GIF图倒放
+    # 'memberguess',#猜群友头像
+    # 'portune',#运势插件
+    # 'pcr_calendar',#全服务器通用日历表，关键词为日历
+    # 'xcw',#数个插件的混合，需要xcw资源包配合链接：https://pan.baidu.com/s/1tb0skZTs8NSHYZ-Tm3Cs0w 提取码：2333
+    # 'revgif',#GIF图倒放
 
-    'whattoeat',
-    'fucking_crazy_thursday',
+    # 'whattoeat',
+    # 'fucking_crazy_thursday',
 
-    'daxuexi_HoshinoBot',
+    # 'daxuexi_HoshinoBot',
     # 'travelpolicy_HoshinoBot', #出行政策
-    'pcr_calculator_plus',
-    'dailynews',
-    'yaowoyizhi',
-    'dailywife',
-    'custom',
-    'pokemon_whois',
+    # 'pcr_calculator_plus',
+    # 'dailynews',
+    # 'yaowoyizhi',
+    # 'dailywife',
+    # 'custom',
+    # 'pokemon_whois',
     # 'aoe4_watcher_bot',
-    'aoe_test'
+    # 'aoe_test',
+    'dailySum'
 
 
 }
