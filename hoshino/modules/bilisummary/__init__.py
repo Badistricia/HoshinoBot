@@ -22,13 +22,13 @@ def create_bilibili_miniapp(video_info):
     desc = video_info.get('desc', '')[:50] + '...' if len(video_info.get('desc', '')) > 50 else video_info.get('desc', '')
     bvid = video_info.get('bvid', '')
     
-    # 构建小程序JSON
+    # 构建小程序JSON - 使用正确的JSON格式
     miniapp_json = {
         "app": "com.tencent.miniapp",
         "desc": "",
         "view": "view_8C8E89B49BE609866298ADDFF2DBABA4",
         "ver": "1.0.0.103",
-        "prompt": f"[QQ小程序]哔哩哔哩",
+        "prompt": "[QQ小程序]哔哩哔哩",
         "appID": "",
         "sourceName": "",
         "actionData": "",
@@ -57,7 +57,10 @@ def create_bilibili_miniapp(video_info):
         "extra": ""
     }
     
-    return f"[CQ:json,data={str(miniapp_json).replace(' ', '')}]"
+    # 使用json.dumps确保正确的JSON格式
+    import json
+    json_str = json.dumps(miniapp_json, ensure_ascii=False, separators=(',', ':'))
+    return f"[CQ:json,data={json_str}]"
 
 # 监听所有群消息，检测B站链接
 @sv.on_message('group')
@@ -77,11 +80,15 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
     try:
         # 尝试加载cookies
         cookies = load_cookies()
+        if not cookies:
+            # 如果没有cookies，提示用户登录
+            await bot.send(ev, '检测到B站链接，但未登录B站账号。\n发送"b站登录"获取登录二维码，或发送"b站帮助"查看使用说明。')
+            return
         
         # 获取视频信息
         video_info = await get_video_info(video_id, cookies)
         if not video_info:
-            await bot.send(ev, '获取视频信息失败')
+            await bot.send(ev, '获取视频信息失败，可能需要重新登录B站账号')
             return
         
         # 发送小程序卡片
@@ -178,11 +185,14 @@ async def bilibili_summary_command(bot, ev: CQEvent):
         
         # 尝试加载cookies
         cookies = load_cookies()
+        if not cookies:
+            await bot.send(ev, '未登录B站账号，发送"b站登录"获取登录二维码')
+            return
         
         # 获取视频信息
         video_info = await get_video_info(video_id, cookies)
         if not video_info:
-            await bot.send(ev, '获取视频信息失败，请检查链接是否正确')
+            await bot.send(ev, '获取视频信息失败，请检查链接是否正确或重新登录B站账号')
             return
         
         # 获取字幕
@@ -217,3 +227,50 @@ async def bilibili_summary_command(bot, ev: CQEvent):
     except Exception as e:
         sv.logger.error(f'生成摘要失败: {str(e)}')
         await bot.send(ev, f'生成摘要时发生错误: {str(e)}')
+
+@sv.on_fullmatch(('b站登录', 'B站登录', '哔哩哔哩登录', 'bili登录'))
+async def bilibili_login_command(bot, ev: CQEvent):
+    """B站登录命令"""
+    try:
+        from .bilibili_api import login_with_qrcode
+        
+        await bot.send(ev, '正在生成B站登录二维码，请稍候...')
+        
+        # 调用登录函数
+        result = await login_with_qrcode()
+        
+        if result:
+            await bot.send(ev, 'B站登录成功！现在可以正常使用B站相关功能了。')
+        else:
+            await bot.send(ev, 'B站登录失败或已取消，请重试。')
+            
+    except Exception as e:
+        sv.logger.error(f'B站登录失败: {str(e)}')
+        await bot.send(ev, f'B站登录时发生错误: {str(e)}')
+
+@sv.on_fullmatch(('b站帮助', 'B站帮助', '哔哩哔哩帮助', 'bili帮助'))
+async def bilibili_help_command(bot, ev: CQEvent):
+    """B站插件帮助信息"""
+    help_text = """📺 B站视频解析和摘要插件
+
+🔧 功能说明：
+• 自动识别群内B站链接并发送小程序卡片
+• 回复包含B站链接的消息并发送"总结"或"摘要"获取AI摘要
+• 使用命令直接获取视频摘要
+
+📋 命令列表：
+• b站登录 - 获取B站登录二维码
+• b站摘要 [链接] - 直接获取视频摘要
+• b站帮助 - 显示此帮助信息
+
+⚠️ 注意事项：
+• 首次使用需要登录B站账号
+• 登录后会自动保存登录状态
+• 如果功能异常，请尝试重新登录
+
+💡 使用提示：
+• 直接发送B站链接即可自动解析
+• 回复视频消息并发送"总结"获取摘要
+• 支持BV号、AV号和各种B站链接格式"""
+    
+    await bot.send(ev, help_text)
