@@ -82,7 +82,7 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
         cookies = load_cookies()
         if not cookies:
             # 如果没有cookies，提示用户登录
-            await bot.send(ev, '检测到B站链接，但未登录B站账号。\n发送"b站登录"获取登录二维码，或发送"b站帮助"查看使用说明。')
+            await bot.send(ev, '检测到B站链接，但未登录B站账号。\n发送"b站设置cookie"手动设置Cookie（推荐），或发送"b站帮助"查看使用说明。')
             return
         
         # 获取视频信息
@@ -186,7 +186,7 @@ async def bilibili_summary_command(bot, ev: CQEvent):
         # 尝试加载cookies
         cookies = load_cookies()
         if not cookies:
-            await bot.send(ev, '未登录B站账号，发送"b站登录"获取登录二维码')
+            await bot.send(ev, '未登录B站账号，发送"b站设置cookie"手动设置Cookie（推荐）')
             return
         
         # 获取视频信息
@@ -248,6 +248,61 @@ async def bilibili_login_command(bot, ev: CQEvent):
         sv.logger.error(f'B站登录失败: {str(e)}')
         await bot.send(ev, f'B站登录时发生错误: {str(e)}')
 
+@sv.on_prefix(('b站设置cookie', 'B站设置cookie', '设置b站cookie'))
+async def bilibili_set_cookie_command(bot, ev: CQEvent):
+    """手动设置B站cookies"""
+    cookie_str = str(ev.message.extract_plain_text()).strip()
+    
+    if not cookie_str:
+        help_msg = """🍪 手动设置B站Cookie
+
+📋 使用方法：
+b站设置cookie [cookie字符串]
+
+🔑 获取Cookie步骤：
+1. 登录 bilibili.com
+2. 按F12打开开发者工具
+3. 切换到Network标签
+4. 刷新页面
+5. 找到任意请求，查看Request Headers
+6. 复制Cookie字段的完整内容
+
+💡 示例：
+b站设置cookie SESSDATA=xxx; bili_jct=xxx; DedeUserID=xxx
+
+⚠️ 注意：Cookie包含敏感信息，请在私聊中使用此命令"""
+        
+        await bot.send(ev, help_msg)
+        return
+    
+    try:
+        from .bilibili_api import save_cookies
+        
+        # 解析cookie字符串
+        cookies = {}
+        for item in cookie_str.split(';'):
+            if '=' in item:
+                key, value = item.strip().split('=', 1)
+                cookies[key.strip()] = value.strip()
+        
+        # 检查必要的cookie字段
+        required_fields = ['SESSDATA', 'bili_jct', 'DedeUserID']
+        missing_fields = [field for field in required_fields if field not in cookies]
+        
+        if missing_fields:
+            await bot.send(ev, f'Cookie缺少必要字段: {", ".join(missing_fields)}\n请确保包含SESSDATA、bili_jct、DedeUserID等关键字段')
+            return
+        
+        # 保存cookies
+        if save_cookies(cookies):
+            await bot.send(ev, '✅ B站Cookie设置成功！现在可以正常使用B站相关功能了。')
+        else:
+            await bot.send(ev, '❌ Cookie保存失败，请检查格式是否正确')
+            
+    except Exception as e:
+        sv.logger.error(f'设置B站Cookie失败: {str(e)}')
+        await bot.send(ev, f'设置Cookie时发生错误: {str(e)}')
+
 @sv.on_fullmatch(('b站帮助', 'B站帮助', '哔哩哔哩帮助', 'bili帮助'))
 async def bilibili_help_command(bot, ev: CQEvent):
     """B站插件帮助信息"""
@@ -259,14 +314,23 @@ async def bilibili_help_command(bot, ev: CQEvent):
 • 使用命令直接获取视频摘要
 
 📋 命令列表：
-• b站登录 - 获取B站登录二维码
+• b站登录 - 获取B站登录二维码（可能不稳定）
+• b站设置cookie - 手动设置B站Cookie（推荐）
 • b站摘要 [链接] - 直接获取视频摘要
 • b站帮助 - 显示此帮助信息
 
+🍪 Cookie设置方法（推荐）：
+1. 浏览器登录 bilibili.com
+2. 按F12打开开发者工具
+3. 切换到Network标签，刷新页面
+4. 找到任意请求，复制Cookie字段
+5. 私聊发送：b站设置cookie [完整cookie]
+
 ⚠️ 注意事项：
 • 首次使用需要登录B站账号
-• 登录后会自动保存登录状态
-• 如果功能异常，请尝试重新登录
+• 推荐使用手动设置Cookie方式
+• Cookie包含敏感信息，请在私聊中设置
+• 如果功能异常，请尝试重新设置Cookie
 
 💡 使用提示：
 • 直接发送B站链接即可自动解析
