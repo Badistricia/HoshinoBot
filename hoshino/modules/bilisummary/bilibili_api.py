@@ -16,13 +16,17 @@ def get_mixin_key(orig: str) -> str:
     """获取WBI签名的混合密钥"""
     return hashlib.md5(orig.encode()).hexdigest()
 
-async def get_wbi_keys():
+async def get_wbi_keys(cookies=None):
     """获取最新的WBI签名密钥"""
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Referer': 'https://www.bilibili.com'
         }
+        
+        # 添加cookies
+        if cookies:
+            headers['Cookie'] = '; '.join([f"{k}={v}" for k, v in cookies.items()])
         
         async with aiohttp.ClientSession() as session:
             async with session.get('https://api.bilibili.com/x/web-interface/nav', headers=headers) as resp:
@@ -253,7 +257,7 @@ async def get_video_info(video_id, cookies=None):
             params = {'bvid': video_id}
         
         # 获取WBI签名
-        img_key, sub_key = await get_wbi_keys()
+        img_key, sub_key = await get_wbi_keys(cookies)
         if img_key and sub_key:
             params = encrypt_wbi(params, img_key, sub_key)
             api_url = f"https://api.bilibili.com/x/web-interface/wbi/view?{urlencode(params)}"

@@ -66,7 +66,10 @@ def create_bilibili_miniapp(video_info):
 @sv.on_message('group')
 async def auto_bilibili_parse(bot, ev: CQEvent):
     """自动解析B站链接并发送小程序"""
-    msg = str(ev.message.extract_plain_text())
+    msg = str(ev.message.extract_plain_text()).strip()
+    
+    # 移除可能的markdown格式符号
+    msg = msg.strip('`').strip()
     
     # 检查是否包含B站链接
     if not BILIBILI_URL_PATTERN.search(msg):
