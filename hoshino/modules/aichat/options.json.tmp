@@ -1,0 +1,46 @@
+{
+  "api_providers": {
+    "deepseek": {
+      "models": [
+        "deepseek-chat",
+        "deepseek-reasoner"
+      ],
+      "api_keys": [
+        "sk-94a61ab92c414de58af7e7cbf9d73cd7"
+      ],
+      "base_url": "https://api.deepseek.com"
+    },
+    "alibailian": {
+      "models": [
+        "deepseek-r1",
+        "deepseek-v3",
+        "deepseek-r1-distill-llama-70b"
+      ],
+      "api_keys": [
+        "sk-0b592c2239ef42f3a574d73e3eddbf10"
+      ],
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    "openai": {
+      "models": [
+        "gpt-3.5-turbo",
+        "gpt-4-turbo",
+        "gpt-4o"
+      ],
+      "api_keys": [
+        "sk-xxxxxx",
+        "sk-yyyyyy",
+        "sk-zzzzzz"
+      ],
+      "base_url": "https://api.openai.com"
+    }
+  },
+  "default_settings": {
+    "record": true,
+    "proxy": "http://127.0.0.1:7890",
+    "proxy_on": false,
+    "max_tokens": 512,
+    "temperature": 1.3,
+    "timeout": 30
+  }
+}

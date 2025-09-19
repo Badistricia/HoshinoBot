@@ -1,0 +1,74 @@
+{
+  "981286082": {
+    "proxy": "http://127.0.0.1:7890",
+    "proxy_on": false,
+    "max_tokens": 512,
+    "record": true,
+    "temperature": 1.0,
+    "timeout": 30,
+    "base_url": "https://api.deepseek.com",
+    "api_key": "sk-94a61ab92c414de58af7e7cbf9d73cd7",
+    "api_provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "649387907": {
+    "proxy": "http://127.0.0.1:7890",
+    "proxy_on": false,
+    "max_tokens": 512,
+    "record": true,
+    "temperature": 1.3,
+    "timeout": 30,
+    "base_url": "https://api.deepseek.com",
+    "api_key": "sk-94a61ab92c414de58af7e7cbf9d73cd7",
+    "api_provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "665051201": {
+    "proxy": "http://127.0.0.1:7890",
+    "proxy_on": false,
+    "max_tokens": 512,
+    "record": true,
+    "temperature": 1.3,
+    "timeout": 30,
+    "base_url": "https://api.deepseek.com",
+    "api_key": "sk-94a61ab92c414de58af7e7cbf9d73cd7",
+    "api_provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "685960161": {
+    "proxy": "http://127.0.0.1:7890",
+    "proxy_on": false,
+    "max_tokens": 512,
+    "record": true,
+    "temperature": 1.3,
+    "timeout": 30,
+    "base_url": "https://api.deepseek.com",
+    "api_key": "sk-94a61ab92c414de58af7e7cbf9d73cd7",
+    "api_provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "952870960": {
+    "proxy": "http://127.0.0.1:7890",
+    "proxy_on": false,
+    "max_tokens": 512,
+    "record": true,
+    "temperature": 1.3,
+    "timeout": 30,
+    "base_url": "https://api.deepseek.com",
+    "api_key": "sk-94a61ab92c414de58af7e7cbf9d73cd7",
+    "api_provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "264828488": {
+    "proxy": "http://127.0.0.1:7890",
+    "proxy_on": false,
+    "max_tokens": 512,
+    "record": true,
+    "temperature": 1.3,
+    "timeout": 30,
+    "base_url": "https://api.deepseek.com",
+    "api_key": "sk-94a61ab92c414de58af7e7cbf9d73cd7",
+    "api_provider": "deepseek",
+    "model": "deepseek-chat"
+  }
+}
