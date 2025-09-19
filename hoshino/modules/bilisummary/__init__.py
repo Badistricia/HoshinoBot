@@ -10,7 +10,7 @@ sv = Service('bilisummary', help_='B站视频解析和摘要\n自动识别B站�
 
 # B站链接正则表达式
 BILIBILI_URL_PATTERN = re.compile(
-    r'(?:https?://)?(?:www\.)?(?:bilibili\.com/video/|b23\.tv/|m\.bilibili\.com/video/)([A-Za-z0-9]+)|BV[A-Za-z0-9]+|av\d+',
+    r'(?:https?://)?(?:www\.)?(?:bilibili\.com/video/|b23\.tv/|m\.bilibili\.com/video/)(BV[A-Za-z0-9]+|av\d+)|(?:^|\s)(BV[A-Za-z0-9]+|av\d+)(?:\s|$)',
     re.IGNORECASE
 )
 
@@ -63,6 +63,7 @@ def create_bilibili_miniapp(video_info):
 async def auto_bilibili_parse(bot, ev: CQEvent):
     """自动解析B站链接并发送小程序"""
     msg = ev.message.extract_plain_text()
+    match = ev['match']
     
     # 提取视频ID
     video_id = extract_video_id(msg)
@@ -76,6 +77,7 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
         # 获取视频信息
         video_info = await get_video_info(video_id, cookies)
         if not video_info:
+            await bot.send(ev, '获取视频信息失败')
             return
         
         # 发送小程序卡片
@@ -84,6 +86,7 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
         
     except Exception as e:
         sv.logger.error(f'解析B站链接失败: {str(e)}')
+        await bot.send(ev, f'解析B站链接失败: {str(e)}')
 
 @sv.on_keyword(('总结', '摘要'))
 async def bilibili_summary_reply(bot, ev: CQEvent):
