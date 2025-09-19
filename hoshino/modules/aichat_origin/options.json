@@ -1,0 +1,37 @@
+{
+  "api_providers": {
+    "deepseek": {
+      "models": [
+        "deepseek-chat",
+        "deepseek-reasoner"
+      ],
+      "api_keys": [
+        "sk-b099xxxxxx",
+        "sk-b001xxxxxx",
+        "sk-b092xxxxxx"
+      ],
+      "base_url": "https://api.deepseek.com"
+    },
+    "openai": {
+      "models": [
+        "gpt-3.5-turbo",
+        "gpt-4-turbo",
+        "gpt-4o"
+      ],
+      "api_keys": [
+        "sk-xxxxxx",
+        "sk-yyyyyy",
+        "sk-zzzzzz"
+      ],
+      "base_url": "https://api.openai.com"
+    }
+  },
+  "default_settings": {
+    "record": true,
+    "proxy": "http://127.0.0.1:7890",
+    "proxy_on": false,
+    "max_tokens": 512,
+    "temperature": 1.3,
+    "timeout": 60
+  }
+}
