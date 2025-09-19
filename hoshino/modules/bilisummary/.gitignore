@@ -1,0 +1,24 @@
+# Python缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 日志文件
+*.log
+
+# 临时文件
+login_qrcode.png
+bilibili_cookies.json
+
+# 环境文件
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE文件
+.idea/
+.vscode/
+*.swp
+*.swo
