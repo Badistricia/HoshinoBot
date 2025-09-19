@@ -140,3 +140,4 @@ venv.bak/
 # mypy
 .mypy_cache/
 /hoshino/modules/eqa/data/db.sqlite
+/hoshino/modules/dailySum/data/
