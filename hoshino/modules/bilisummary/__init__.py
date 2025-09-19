@@ -59,11 +59,15 @@ def create_bilibili_miniapp(video_info):
     
     return f"[CQ:json,data={str(miniapp_json).replace(' ', '')}]"
 
-@sv.on_rex(BILIBILI_URL_PATTERN)
+# 监听所有群消息，检测B站链接
+@sv.on_message('group')
 async def auto_bilibili_parse(bot, ev: CQEvent):
     """自动解析B站链接并发送小程序"""
-    msg = ev.message.extract_plain_text()
-    match = ev['match']
+    msg = str(ev.message.extract_plain_text())
+    
+    # 检查是否包含B站链接
+    if not BILIBILI_URL_PATTERN.search(msg):
+        return
     
     # 提取视频ID
     video_id = extract_video_id(msg)
@@ -91,133 +95,125 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
 @sv.on_keyword(('总结', '摘要'))
 async def bilibili_summary_reply(bot, ev: CQEvent):
     """回复总结关键词时，对引用的B站链接进行AI总结"""
+    msg = str(ev.message)
+    
     # 检查是否有引用消息
-    match = re.match(r"\[CQ:reply,id=(?P<id>.*)\]", str(ev.message))
-    if not match:
+    reply_match = re.search(r'\[CQ:reply,id=(\d+)\]', msg)
+    if not reply_match:
         return
-    
-    # 获取被引用的消息ID
-    message_id = match.group("id")
-    try:
-        # 获取被引用的消息内容
-        reply_message = await bot.get_msg(message_id=message_id)
-        reply_text = reply_message.get('message', '')
-    except Exception as e:
-        sv.logger.error(f'获取引用消息失败: {str(e)}')
-        return
-    
-    # 检查引用消息是否包含B站链接
-    if not BILIBILI_URL_PATTERN.search(str(reply_text)):
-        return
-    
-    # 提取视频ID
-    video_id = extract_video_id(str(reply_text))
-    if not video_id:
-        await bot.send(ev, '无法识别B站视频链接')
-        return
-    
-    await bot.send(ev, '正在生成视频摘要，请稍候...')
     
     try:
+        # 获取被引用的消息
+        reply_id = reply_match.group(1)
+        reply_msg = await bot.get_msg(message_id=int(reply_id))
+        reply_content = reply_msg['message']
+        
+        # 检查引用的消息是否包含B站链接
+        if not BILIBILI_URL_PATTERN.search(reply_content):
+            return
+        
+        # 提取视频ID
+        video_id = extract_video_id(reply_content)
+        if not video_id:
+            await bot.send(ev, '无法提取视频ID')
+            return
+        
+        await bot.send(ev, '正在生成视频摘要，请稍候...')
+        
         # 尝试加载cookies
         cookies = load_cookies()
         
-        # 获取视频信息
+        # 获取视频信息和字幕
         video_info = await get_video_info(video_id, cookies)
         if not video_info:
             await bot.send(ev, '获取视频信息失败')
             return
         
-        # 获取字幕
-        subtitle = await get_video_subtitle(video_id, cookies)
+        subtitle_text = await get_video_subtitle(video_id, cookies)
         
         # 生成摘要
-        summary = await generate_summary(video_info, subtitle)
+        summary = await generate_summary(video_info, subtitle_text)
         
-        # 构建回复消息
-        title = video_info.get('title', '未知标题')
-        author = video_info.get('owner', {}).get('name', '未知UP主')
-        duration = video_info.get('duration', 0)
-        view = video_info.get('stat', {}).get('view', 0)
-        
-        # 格式化时长
-        minutes = duration // 60
-        seconds = duration % 60
-        duration_str = f"{minutes}:{seconds:02d}"
-        
-        # 格式化播放量
-        if view >= 10000:
-            view_str = f"{view/10000:.1f}万"
+        if summary:
+            # 格式化输出
+            title = video_info.get('title', '未知标题')
+            author = video_info.get('owner', {}).get('name', '未知UP主')
+            duration = video_info.get('duration', 0)
+            
+            # 转换时长格式
+            minutes = duration // 60
+            seconds = duration % 60
+            duration_str = f"{minutes}:{seconds:02d}"
+            
+            response = f"📺 {title}\n"
+            response += f"👤 UP主: {author}\n"
+            response += f"⏱️ 时长: {duration_str}\n\n"
+            response += f"📝 AI摘要:\n{summary}"
+            
+            await bot.send(ev, response)
         else:
-            view_str = str(view)
-        
-        reply = f"📺 《{title}》\n"
-        reply += f"👤 UP主: {author}\n"
-        reply += f"⏱️ 时长: {duration_str} | 👁️ 播放: {view_str}\n\n"
-        reply += f"📝 AI摘要:\n{summary}"
-        
-        # 发送摘要
-        await bot.send(ev, reply)
-        
+            await bot.send(ev, '生成摘要失败，可能是视频没有字幕或字幕获取失败')
+            
     except Exception as e:
-        await bot.send(ev, f'生成摘要时发生错误: {str(e)}')
+        sv.logger.error(f'生成摘要失败: {str(e)}')
+        await bot.send(ev, f'生成摘要失败: {str(e)}')
 
 @sv.on_prefix(('b站摘要', 'B站摘要', '哔哩哔哩摘要', 'bili摘要'))
 async def bilibili_summary_command(bot, ev: CQEvent):
     """命令式B站视频摘要"""
-    msg = ev.message.extract_plain_text().strip()
-    if not msg:
-        await bot.send(ev, '请提供B站视频链接或BV号')
+    url = str(ev.message.extract_plain_text()).strip()
+    
+    if not url:
+        await bot.send(ev, '请提供B站视频链接\n用法: b站摘要 [视频链接]')
         return
     
     # 提取视频ID
-    video_id = extract_video_id(msg)
+    video_id = extract_video_id(url)
     if not video_id:
-        await bot.send(ev, '无法识别的视频链接或BV号')
+        await bot.send(ev, '无法识别的B站链接格式')
         return
     
-    await bot.send(ev, '正在生成视频摘要，请稍候...')
-    
     try:
+        await bot.send(ev, '正在获取视频信息和生成摘要，请稍候...')
+        
         # 尝试加载cookies
         cookies = load_cookies()
         
         # 获取视频信息
         video_info = await get_video_info(video_id, cookies)
         if not video_info:
-            await bot.send(ev, '获取视频信息失败')
+            await bot.send(ev, '获取视频信息失败，请检查链接是否正确')
             return
         
         # 获取字幕
-        subtitle = await get_video_subtitle(video_id, cookies)
+        subtitle_text = await get_video_subtitle(video_id, cookies)
         
         # 生成摘要
-        summary = await generate_summary(video_info, subtitle)
+        summary = await generate_summary(video_info, subtitle_text)
         
-        # 构建回复消息
-        title = video_info.get('title', '未知标题')
-        author = video_info.get('owner', {}).get('name', '未知UP主')
-        duration = video_info.get('duration', 0)
-        view = video_info.get('stat', {}).get('view', 0)
-        
-        # 格式化时长
-        minutes = duration // 60
-        seconds = duration % 60
-        duration_str = f"{minutes}:{seconds:02d}"
-        
-        # 格式化播放量
-        if view >= 10000:
-            view_str = f"{view/10000:.1f}万"
+        if summary:
+            # 格式化输出
+            title = video_info.get('title', '未知标题')
+            author = video_info.get('owner', {}).get('name', '未知UP主')
+            duration = video_info.get('duration', 0)
+            view_count = video_info.get('stat', {}).get('view', 0)
+            like_count = video_info.get('stat', {}).get('like', 0)
+            
+            # 转换时长格式
+            minutes = duration // 60
+            seconds = duration % 60
+            duration_str = f"{minutes}:{seconds:02d}"
+            
+            response = f"📺 {title}\n"
+            response += f"👤 UP主: {author}\n"
+            response += f"⏱️ 时长: {duration_str}\n"
+            response += f"👀 播放: {view_count:,} | 👍 点赞: {like_count:,}\n\n"
+            response += f"📝 AI摘要:\n{summary}"
+            
+            await bot.send(ev, response)
         else:
-            view_str = str(view)
-        
-        reply = f"📺 《{title}》\n"
-        reply += f"👤 UP主: {author}\n"
-        reply += f"⏱️ 时长: {duration_str} | 👁️ 播放: {view_str}\n\n"
-        reply += f"📝 AI摘要:\n{summary}"
-        
-        # 发送摘要
-        await bot.send(ev, reply)
-        
+            await bot.send(ev, '生成摘要失败，可能是视频没有字幕或字幕获取失败')
+            
     except Exception as e:
+        sv.logger.error(f'生成摘要失败: {str(e)}')
         await bot.send(ev, f'生成摘要时发生错误: {str(e)}')
