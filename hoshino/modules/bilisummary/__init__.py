@@ -67,23 +67,36 @@ def extract_miniprogram_bilibili_url(msg):
         json_str = json_str.replace('&amp;', '&').replace('&#44;', ',').replace('&#91;', '[').replace('&#93;', ']')
         json_data = json.loads(json_str)
         
-        # 检查是否是B站小程序
-        if 'app' in json_data and json_data['app'] == 'com.tencent.structmsg':
+        # 检查是否是B站小程序 - 支持多种小程序类型
+        app_type = json_data.get('app', '')
+        if app_type in ['com.tencent.structmsg', 'com.tencent.miniapp_01']:
             meta = json_data.get('meta', {})
             detail_1 = meta.get('detail_1', {})
             
-            # 查找B站相关的URL
+            # 查找B站相关的URL - 优先检查qqdocurl
             qqdocurl = detail_1.get('qqdocurl', '')
-            if 'bilibili.com' in qqdocurl or 'b23.tv' in qqdocurl:
+            if qqdocurl and ('bilibili.com' in qqdocurl or 'b23.tv' in qqdocurl):
+                sv.logger.info(f'从小程序提取到B站链接: {qqdocurl}')
                 return qqdocurl
+            
+            # 检查url字段
+            url = detail_1.get('url', '')
+            if url and ('bilibili.com' in url or 'b23.tv' in url):
+                sv.logger.info(f'从小程序url字段提取到B站链接: {url}')
+                return url
                 
-            # 也检查其他可能的字段
-            for key, value in detail_1.items():
-                if isinstance(value, str) and ('bilibili.com' in value or 'b23.tv' in value):
-                    return value
-                    
+            # 检查title是否包含哔哩哔哩
+            title = detail_1.get('title', '')
+            if title and '哔哩哔哩' in title:
+                # 如果标题包含哔哩哔哩，再次检查所有字段
+                for key, value in detail_1.items():
+                    if isinstance(value, str) and ('bilibili.com' in value or 'b23.tv' in value):
+                        sv.logger.info(f'从小程序{key}字段提取到B站链接: {value}')
+                        return value
+                        
     except Exception as e:
-        sv.logger.debug(f'解析小程序JSON失败: {str(e)}')
+        sv.logger.error(f'解析小程序JSON失败: {str(e)}')
+        sv.logger.debug(f'原始消息: {msg}')
     
     return None
 
