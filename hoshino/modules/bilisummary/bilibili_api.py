@@ -345,7 +345,16 @@ async def get_video_subtitle(video_id, cookies=None):
                     return None
                 
                 # 获取第一个字幕（通常是中文）
-                subtitle_item = subtitle_list[0]
+                # 检查字幕来源，优先选择官方字幕而非AI生成字幕
+                official_subtitles = [s for s in subtitle_list if not s.get('ai_status', 1)]
+                if official_subtitles:
+                    subtitle_item = official_subtitles[0]
+                    print("[字幕] 使用官方字幕")
+                else:
+                    # 如果没有官方字幕，检查字幕内容是否与视频标题相关
+                    subtitle_item = subtitle_list[0]
+                    print("[字幕] 使用AI生成字幕，请注意内容可能不准确")
+                
                 subtitle_content_url = subtitle_item['subtitle_url']
                 if not subtitle_content_url.startswith('http'):
                     subtitle_content_url = f"https:{subtitle_content_url}"
