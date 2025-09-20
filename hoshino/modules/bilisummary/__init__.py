@@ -15,61 +15,46 @@ BILIBILI_URL_PATTERN = re.compile(
 )
 
 def create_bilibili_miniapp(video_info):
-    """创建B站小程序卡片"""
+    """创建B站视频信息文本"""
     title = video_info.get('title', '未知标题')
     author = video_info.get('owner', {}).get('name', '未知UP主')
-    pic = video_info.get('pic', '')
     desc = video_info.get('desc', '')[:50] + '...' if len(video_info.get('desc', '')) > 50 else video_info.get('desc', '')
     bvid = video_info.get('bvid', '')
     video_url = f"https://www.bilibili.com/video/{bvid}"
     
-    # 构建小程序JSON - 使用正确的小程序格式
-    miniapp_json = {
-        "app": "com.tencent.miniapp_01",
-        "config": {
-            "autosize": True,
-            "ctime": 1234567890,
-            "forward": True,
-            "token": "xxx",
-            "type": "normal"
-        },
-        "extra": {
-            "app_type": 1,
-            "appid": 1109937557,
-            "uin": 123456789
-        },
-        "meta": {
-            "detail_1": {
-                "appid": "1109937557",
-                "desc": desc,
-                "gamePoints": "",
-                "gamePointsUrl": "",
-                "host": {
-                    "nick": author,
-                    "uin": 123456789
-                },
-                "icon": "http://miniapp.gtimg.cn/public/appicon/432b76be3a548fc128acaa6c1ec90131_200.jpg",
-                "preview": pic,
-                "qqdocurl": video_url,
-                "scene": 1036,
-                "shareTemplateData": {},
-                "shareTemplateId": "",
-                "showLittleTail": "",
-                "title": title,
-                "url": video_url
-            }
-        }
-    }
+    # 获取更多视频信息
+    stat = video_info.get('stat', {})
+    view = stat.get('view', 0)  # 播放量
+    like = stat.get('like', 0)  # 点赞数
+    coin = stat.get('coin', 0)  # 投币数
+    favorite = stat.get('favorite', 0)  # 收藏数
+    danmaku = stat.get('danmaku', 0)  # 弹幕数
     
-    # 使用json.dumps确保正确的JSON格式
-    import json
-    json_str = json.dumps(miniapp_json, ensure_ascii=False)
-    return f"[CQ:app,data={json_str}]"
+    # 获取视频分区信息
+    tname = video_info.get('tname', '未知分区')
+    
+    # 格式化数字
+    def format_number(num):
+        if num >= 10000:
+            return f"{num/10000:.1f}万"
+        return str(num)
+    
+    # 构建视频信息文本
+    info_text = (
+        f"标题：{title}\n"
+        f"UP主：{author}\n"
+        f"分区：{tname}\n"
+        f"播放：{format_number(view)} | 点赞：{format_number(like)} | 弹幕：{format_number(danmaku)}\n"
+        f"简介：{desc}\n"
+        f"链接：{video_url}"
+    )
+    
+    return info_text
 
 # 监听所有群消息，检测B站链接
 @sv.on_message('group')
 async def auto_bilibili_parse(bot, ev: CQEvent):
-    """自动解析B站链接并发送小程序"""
+    """自动解析B站链接并发送视频信息和AI摘要"""
     msg = str(ev.message.extract_plain_text()).strip()
     
     # 移除可能的markdown格式符号
@@ -98,9 +83,47 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
             await bot.send(ev, '获取视频信息失败，可能需要重新登录B站账号')
             return
         
-        # 发送小程序卡片
-        miniapp = create_bilibili_miniapp(video_info)
-        await bot.send(ev, miniapp)
+        # 获取视频字幕
+        subtitle_text = await get_video_subtitle(video_id, cookies)
+        
+        # 获取视频基本信息
+        title = video_info.get('title', '未知标题')
+        author = video_info.get('owner', {}).get('name', '未知UP主')
+        duration = video_info.get('duration', 0)
+        
+        # 获取统计信息
+        stat = video_info.get('stat', {})
+        view = stat.get('view', 0)  # 播放量
+        like = stat.get('like', 0)  # 点赞数
+        
+        # 格式化数字
+        def format_number(num):
+            if num >= 10000:
+                return f"{num/10000:.1f}万"
+            return f"{num:,}"
+        
+        # 转换时长格式
+        minutes = duration // 60
+        seconds = duration % 60
+        duration_str = f"{minutes}:{seconds:02d}"
+        if minutes >= 60:
+            hours = minutes // 60
+            minutes = minutes % 60
+            duration_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+        
+        # 生成AI摘要
+        await bot.send(ev, '正在生成视频摘要，请稍候...')
+        summary = await generate_summary(video_info, subtitle_text)
+        
+        # 构建视频信息和摘要文本
+        response = f"📺 {title}\n"
+        response += f"👤 UP主: {author}\n"
+        response += f"⏱️ 时长: {duration_str}\n"
+        response += f"👀 播放: {format_number(view)} | 👍 点赞: {format_number(like)}\n\n"
+        response += f"📝 AI摘要:\n{summary}"
+        
+        # 发送视频信息和摘要
+        await bot.send(ev, response)
         
     except Exception as e:
         sv.logger.error(f'解析B站链接失败: {str(e)}')
