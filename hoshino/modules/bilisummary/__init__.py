@@ -3,7 +3,7 @@ import re
 import asyncio
 from hoshino import Service
 from hoshino.typing import CQEvent
-from .bilibili_api import extract_video_id, get_video_info, get_video_subtitle, load_cookies
+from .bilibili_api import extract_video_id_async, get_video_info, get_video_subtitle, load_cookies
 from .ai_summary import generate_summary
 
 sv = Service('bilisummary', help_='B站视频解析和摘要\n自动识别B站链接（包括小程序）发送基本信息\n回复"B站解析"或"AI总结"可获取AI摘要', enable_on_default=True)
@@ -116,13 +116,13 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
     
     # 先检查普通B站链接
     if BILIBILI_URL_PATTERN.search(plain_msg):
-        video_id = extract_video_id(plain_msg)
+        video_id = await extract_video_id_async(plain_msg)
     
     # 如果没有找到普通链接，检查小程序
     if not video_id:
         miniprogram_url = extract_miniprogram_bilibili_url(msg)
         if miniprogram_url:
-            video_id = extract_video_id(miniprogram_url)
+            video_id = await extract_video_id_async(miniprogram_url)
             is_miniprogram = True
     
     if not video_id:
@@ -217,13 +217,13 @@ async def bilibili_summary_reply(bot, ev: CQEvent):
         
         # 先检查普通B站链接
         if BILIBILI_URL_PATTERN.search(reply_plain_content):
-            video_id = extract_video_id(reply_plain_content)
+            video_id = await extract_video_id_async(reply_plain_content)
         
         # 如果没有找到普通链接，检查小程序
         if not video_id:
             miniprogram_url = extract_miniprogram_bilibili_url(reply_content)
             if miniprogram_url:
-                video_id = extract_video_id(miniprogram_url)
+                video_id = await extract_video_id_async(miniprogram_url)
         
         if not video_id:
             return
@@ -278,7 +278,7 @@ async def bilibili_summary_command(bot, ev: CQEvent):
         return
     
     # 提取视频ID
-    video_id = extract_video_id(url)
+    video_id = await extract_video_id_async(url)
     if not video_id:
         await bot.send(ev, '无法识别的B站链接格式')
         return

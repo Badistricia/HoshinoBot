@@ -212,6 +212,26 @@ async def login_with_qrcode():
     return None
 
 # 提取视频ID
+async def resolve_short_url(url):
+    """解析B站短链接，获取真实URL"""
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, allow_redirects=False) as resp:
+                if resp.status in [301, 302, 303, 307, 308]:
+                    redirect_url = resp.headers.get('Location')
+                    print(f"[短链接解析] {url} -> {redirect_url}")
+                    return redirect_url
+                else:
+                    print(f"[短链接解析] 无重定向，返回原URL: {url}")
+                    return url
+    except Exception as e:
+        print(f"[短链接解析] 解析短链接出错: {e}")
+        return url
+
 def extract_video_id(url):
     """从B站URL中提取视频ID"""
     if not url:
@@ -255,14 +275,18 @@ def extract_video_id(url):
             print(f"[提取视频ID] 解析URL参数出错: {parse_error}")
         
         # 如果以上方法都失败，尝试从路径中提取
-        path_parts = parsed_url.path.split('/')
-        for part in path_parts:
-            if part.startswith('BV') or part.startswith('bv'):
-                print(f"[提取视频ID] 从URL路径提取到BV号: {part}")
-                return part
-            elif part.startswith('AV') or part.startswith('av'):
-                print(f"[提取视频ID] 从URL路径提取到AV号: {part}")
-                return part
+        try:
+            parsed_url = urlparse(url)
+            path_parts = parsed_url.path.split('/')
+            for part in path_parts:
+                if part.startswith('BV') or part.startswith('bv'):
+                    print(f"[提取视频ID] 从URL路径提取到BV号: {part}")
+                    return part
+                elif part.startswith('AV') or part.startswith('av'):
+                    print(f"[提取视频ID] 从URL路径提取到AV号: {part}")
+                    return part
+        except Exception as path_error:
+            print(f"[提取视频ID] 解析URL路径出错: {path_error}")
         
         print(f"[提取视频ID] 无法从URL提取视频ID: {url}")
         return None
@@ -270,6 +294,37 @@ def extract_video_id(url):
         print(f"[提取视频ID] 提取视频ID出错: {e}")
         print(f"[提取视频ID] 问题URL: {url}")
         print(f"[提取视频ID] 错误详情: {traceback.format_exc()}")
+        return None
+
+async def extract_video_id_async(url):
+    """异步版本的视频ID提取，支持短链接解析"""
+    if not url:
+        return None
+    
+    try:
+        # 清理URL，移除多余的引号和空格
+        url = url.strip().strip('"\'')
+        
+        print(f"[异步提取视频ID] 原始URL: {url}")
+        
+        # 检查是否为B站短链接
+        if 'b23.tv' in url or 'bili2233.cn' in url:
+            print(f"[异步提取视频ID] 检测到短链接，开始解析...")
+            resolved_url = await resolve_short_url(url)
+            if resolved_url and resolved_url != url:
+                print(f"[异步提取视频ID] 短链接解析成功: {resolved_url}")
+                # 递归调用同步版本处理解析后的URL
+                return extract_video_id(resolved_url)
+            else:
+                print(f"[异步提取视频ID] 短链接解析失败，尝试直接提取")
+        
+        # 如果不是短链接或解析失败，使用同步版本处理
+        return extract_video_id(url)
+        
+    except Exception as e:
+        print(f"[异步提取视频ID] 异步提取视频ID出错: {e}")
+        print(f"[异步提取视频ID] 问题URL: {url}")
+        print(f"[异步提取视频ID] 错误详情: {traceback.format_exc()}")
         return None
 
 async def get_video_info(video_id, cookies=None):
