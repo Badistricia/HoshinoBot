@@ -265,17 +265,9 @@ async def get_video_info(video_id, cookies=None):
             # 降级使用普通API
             api_url = f"https://api.bilibili.com/x/web-interface/view?{urlencode(params)}"
         
-        print(f"[DEBUG] 请求B站视频信息API: {api_url}")
-        print(f"[DEBUG] 请求头: {headers}")
-        
         async with aiohttp.ClientSession() as session:
             async with session.get(api_url, headers=headers) as resp:
                 res = await resp.json()
-                
-                # 打印完整的API返回数据
-                print(f"[DEBUG] B站视频信息API返回状态码: {res['code']}")
-                print(f"[DEBUG] B站视频信息API返回消息: {res.get('message', '无消息')}")
-                print(f"[DEBUG] B站视频信息API返回数据: {json.dumps(res, ensure_ascii=False, indent=2)}")
                 
                 if res['code'] == 0:
                     return res['data']
