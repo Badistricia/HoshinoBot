@@ -8,6 +8,7 @@ import string
 import qrcode
 import asyncio
 import os
+import traceback
 from io import BytesIO
 from urllib.parse import urlparse, parse_qs, urlencode
 
@@ -216,27 +217,36 @@ def extract_video_id(url):
     if not url:
         return None
     
-    # 处理BV号
-    bv_match = re.search(r'[Bb][Vv]([a-zA-Z0-9]+)', url)
-    if bv_match:
-        return f"BV{bv_match.group(1)}"
-    
-    # 处理AV号
-    av_match = re.search(r'[Aa][Vv](\d+)', url)
-    if av_match:
-        return f"av{av_match.group(1)}"
-    
-    # 处理URL参数中的bvid或aid
-    parsed_url = urlparse(url)
-    query_params = parse_qs(parsed_url.query)
-    
-    if 'bvid' in query_params:
-        return query_params['bvid'][0]
-    
-    if 'aid' in query_params:
-        return f"av{query_params['aid'][0]}"
-    
-    return None
+    try:
+        # 清理URL，移除多余的引号和空格
+        url = url.strip().strip('"\'')
+        
+        # 处理BV号
+        bv_match = re.search(r'[Bb][Vv]([a-zA-Z0-9]+)', url)
+        if bv_match:
+            return f"BV{bv_match.group(1)}"
+        
+        # 处理AV号
+        av_match = re.search(r'[Aa][Vv](\d+)', url)
+        if av_match:
+            return f"av{av_match.group(1)}"
+        
+        # 处理URL参数中的bvid或aid
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        
+        if 'bvid' in query_params:
+            return query_params['bvid'][0]
+        
+        if 'aid' in query_params:
+            return f"av{query_params['aid'][0]}"
+        
+        return None
+    except Exception as e:
+        print(f"提取视频ID出错: {e}")
+        print(f"问题URL: {url}")
+        print(f"错误详情: {traceback.format_exc()}")
+        return None
 
 async def get_video_info(video_id, cookies=None):
     """获取B站视频信息"""

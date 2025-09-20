@@ -53,13 +53,13 @@ async def generate_summary(video_info, subtitle=None, max_length=1000):
     desc = video_info.get('desc', '无描述')
     
     # 构建系统提示词
-    system_prompt = "你是一个专业的视频内容总结助手，请根据提供的视频信息和字幕内容，生成一个简洁、全面的视频摘要。"
+    system_prompt = "你是一个专业的视频内容总结助手，请根据提供的视频信息生成一个简洁、全面的视频摘要。"
     
     # 构建用户提示词
     user_prompt = f"请为以下B站视频生成一个摘要：\n\n标题：{title}\n作者：{author}\n描述：{desc}\n"
     
     # 如果有字幕，添加字幕内容
-    if subtitle:
+    if subtitle and subtitle.strip():
         # 如果字幕太长，截取前中后三部分
         if len(subtitle) > 3000:
             first_part = subtitle[:1000]
@@ -70,10 +70,9 @@ async def generate_summary(video_info, subtitle=None, max_length=1000):
             subtitle_text = subtitle
         
         user_prompt += f"\n字幕内容：\n{subtitle_text}"
+        user_prompt += "\n\n请根据视频标题、描述和字幕内容，生成一个全面、客观的视频内容摘要，包括主要观点、关键信息和结论。摘要应该简洁明了，不超过500字。"
     else:
-        user_prompt += "\n（无字幕内容）"
-    
-    user_prompt += "\n\n请生成一个全面、客观的视频内容摘要，包括主要观点、关键信息和结论。摘要应该简洁明了，不超过500字。"
+        user_prompt += "\n\n【注意：该视频没有字幕】\n请仅根据视频标题和描述，尝试推测视频可能的内容，并生成一个简短的摘要。请在摘要开头明确说明'由于视频没有字幕，此摘要仅基于标题和描述推测'。摘要不超过300字。"
     
     try:
         # 调用DeepSeek API
