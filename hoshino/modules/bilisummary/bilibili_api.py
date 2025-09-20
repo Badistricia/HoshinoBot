@@ -310,9 +310,12 @@ async def get_video_subtitle(video_id, cookies=None):
         print(f"[字幕] 视频ID: {video_id}, CID: {cid}, 标题: {video_info['title']}")
         
         # 获取字幕列表
+        # 确保aid是数字格式
+        aid = str(video_info['aid']).replace('av', '')
+        
         params = {
             'cid': cid,
-            'aid': video_info['aid']
+            'aid': aid
         }
         
         # 获取WBI签名
@@ -322,7 +325,7 @@ async def get_video_subtitle(video_id, cookies=None):
             subtitle_url = f"https://api.bilibili.com/x/player/wbi/v2?{urlencode(params)}"
         else:
             # 降级使用普通API
-            subtitle_url = f"https://api.bilibili.com/x/player/v2?cid={cid}&aid={video_info['aid']}"
+            subtitle_url = f"https://api.bilibili.com/x/player/v2?cid={cid}&aid={aid}"
         
         print(f"[字幕] 请求字幕列表URL: {subtitle_url}")
         
