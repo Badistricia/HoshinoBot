@@ -6,7 +6,7 @@ from hoshino.typing import CQEvent
 from .bilibili_api import extract_video_id, get_video_info, get_video_subtitle, load_cookies
 from .ai_summary import generate_summary
 
-sv = Service('bilisummary', help_='B站视频解析和摘要\n自动识别B站链接发送小程序\n回复"总结"可获取AI摘要', enable_on_default=True)
+sv = Service('bilisummary', help_='B站视频解析和摘要\n自动识别B站链接（包括小程序）发送基本信息\n回复"B站解析"或"AI总结"可获取AI摘要', enable_on_default=True)
 
 # B站链接正则表达式
 BILIBILI_URL_PATTERN = re.compile(
@@ -51,21 +51,67 @@ def create_bilibili_miniapp(video_info):
     
     return info_text
 
+# 检测QQ小程序中的B站链接
+def extract_miniprogram_bilibili_url(msg):
+    """从QQ小程序消息中提取B站链接"""
+    # 匹配小程序格式 [CQ:json,data=...]
+    json_match = re.search(r'\[CQ:json,data=([^\]]+)\]', msg)
+    if not json_match:
+        return None
+    
+    import json
+    try:
+        # 解析JSON数据
+        json_str = json_match.group(1)
+        # 处理转义字符
+        json_str = json_str.replace('&amp;', '&').replace('&#44;', ',').replace('&#91;', '[').replace('&#93;', ']')
+        json_data = json.loads(json_str)
+        
+        # 检查是否是B站小程序
+        if 'app' in json_data and json_data['app'] == 'com.tencent.structmsg':
+            meta = json_data.get('meta', {})
+            detail_1 = meta.get('detail_1', {})
+            
+            # 查找B站相关的URL
+            qqdocurl = detail_1.get('qqdocurl', '')
+            if 'bilibili.com' in qqdocurl or 'b23.tv' in qqdocurl:
+                return qqdocurl
+                
+            # 也检查其他可能的字段
+            for key, value in detail_1.items():
+                if isinstance(value, str) and ('bilibili.com' in value or 'b23.tv' in value):
+                    return value
+                    
+    except Exception as e:
+        sv.logger.debug(f'解析小程序JSON失败: {str(e)}')
+    
+    return None
+
 # 监听所有群消息，检测B站链接
 @sv.on_message('group')
 async def auto_bilibili_parse(bot, ev: CQEvent):
-    """自动解析B站链接并发送视频信息和AI摘要"""
-    msg = str(ev.message.extract_plain_text()).strip()
+    """自动解析B站链接并发送视频基本信息（不包含AI摘要）"""
+    msg = str(ev.message).strip()
+    plain_msg = str(ev.message.extract_plain_text()).strip()
     
     # 移除可能的markdown格式符号
-    msg = msg.strip('`').strip()
+    plain_msg = plain_msg.strip('`').strip()
     
-    # 检查是否包含B站链接
-    if not BILIBILI_URL_PATTERN.search(msg):
-        return
+    # 检查是否包含B站链接（普通链接或小程序）
+    video_id = None
+    is_miniprogram = False
     
-    # 提取视频ID
-    video_id = extract_video_id(msg)
+    # 先检查普通B站链接
+    if BILIBILI_URL_PATTERN.search(plain_msg):
+        video_id = extract_video_id(plain_msg)
+    
+    # 如果没有找到普通链接，检查小程序
+    if not video_id:
+        miniprogram_url = extract_miniprogram_bilibili_url(msg)
+        if miniprogram_url:
+            video_id = extract_video_id(miniprogram_url)
+            is_miniprogram = True
+    
     if not video_id:
         return
     
@@ -83,24 +129,30 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
             await bot.send(ev, '获取视频信息失败，可能需要重新登录B站账号')
             return
         
-        # 获取视频字幕
-        subtitle_text = await get_video_subtitle(video_id, cookies)
-        
         # 获取视频基本信息
         title = video_info.get('title', '未知标题')
         author = video_info.get('owner', {}).get('name', '未知UP主')
         duration = video_info.get('duration', 0)
+        desc = video_info.get('desc', '')[:50] + '...' if len(video_info.get('desc', '')) > 50 else video_info.get('desc', '')
+        bvid = video_info.get('bvid', '')
+        video_url = f"https://www.bilibili.com/video/{bvid}"
         
         # 获取统计信息
         stat = video_info.get('stat', {})
         view = stat.get('view', 0)  # 播放量
         like = stat.get('like', 0)  # 点赞数
+        coin = stat.get('coin', 0)  # 投币数
+        favorite = stat.get('favorite', 0)  # 收藏数
+        danmaku = stat.get('danmaku', 0)  # 弹幕数
+        
+        # 获取视频分区信息
+        tname = video_info.get('tname', '未知分区')
         
         # 格式化数字
         def format_number(num):
             if num >= 10000:
                 return f"{num/10000:.1f}万"
-            return f"{num:,}"
+            return str(num)
         
         # 转换时长格式
         minutes = duration // 60
@@ -111,28 +163,29 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
             minutes = minutes % 60
             duration_str = f"{hours}:{minutes:02d}:{seconds:02d}"
         
-        # 生成AI摘要
-        await bot.send(ev, '正在生成视频摘要，请稍候...')
-        summary = await generate_summary(video_info, subtitle_text)
-        
-        # 构建视频信息和摘要文本
+        # 构建视频基本信息文本（不包含AI摘要）
         response = f"📺 {title}\n"
         response += f"👤 UP主: {author}\n"
+        response += f"📂 分区: {tname}\n"
         response += f"⏱️ 时长: {duration_str}\n"
-        response += f"👀 播放: {format_number(view)} | 👍 点赞: {format_number(like)}\n\n"
-        response += f"📝 AI摘要:\n{summary}"
+        response += f"👀 播放: {format_number(view)} | 👍 点赞: {format_number(like)} | 💬 弹幕: {format_number(danmaku)}\n"
+        if desc:
+            response += f"📝 简介: {desc}\n"
+        response += f"🔗 链接: {video_url}\n\n"
+        response += f"💡 回复此消息并发送「B站解析」或「AI总结」可获取视频摘要"
         
-        # 发送视频信息和摘要
+        # 发送视频基本信息
         await bot.send(ev, response)
         
     except Exception as e:
         sv.logger.error(f'解析B站链接失败: {str(e)}')
         await bot.send(ev, f'解析B站链接失败: {str(e)}')
 
-@sv.on_keyword(('总结', '摘要'))
+@sv.on_keyword(('B站解析', 'b站解析', 'AI总结', 'ai总结', '总结', '摘要'))
 async def bilibili_summary_reply(bot, ev: CQEvent):
-    """回复总结关键词时，对引用的B站链接进行AI总结"""
+    """回复B站解析或AI总结关键词时，对引用的B站链接进行AI总结"""
     msg = str(ev.message)
+    plain_msg = str(ev.message.extract_plain_text()).strip()
     
     # 检查是否有引用消息
     reply_match = re.search(r'\[CQ:reply,id=(\d+)\]', msg)
@@ -143,16 +196,23 @@ async def bilibili_summary_reply(bot, ev: CQEvent):
         # 获取被引用的消息
         reply_id = reply_match.group(1)
         reply_msg = await bot.get_msg(message_id=int(reply_id))
-        reply_content = reply_msg['message']
+        reply_content = str(reply_msg['message'])
+        reply_plain_content = reply_msg.get('raw_message', '')
         
-        # 检查引用的消息是否包含B站链接
-        if not BILIBILI_URL_PATTERN.search(reply_content):
-            return
+        # 检查引用的消息是否包含B站链接（普通链接或小程序）
+        video_id = None
         
-        # 提取视频ID
-        video_id = extract_video_id(reply_content)
+        # 先检查普通B站链接
+        if BILIBILI_URL_PATTERN.search(reply_plain_content):
+            video_id = extract_video_id(reply_plain_content)
+        
+        # 如果没有找到普通链接，检查小程序
         if not video_id:
-            await bot.send(ev, '无法提取视频ID')
+            miniprogram_url = extract_miniprogram_bilibili_url(reply_content)
+            if miniprogram_url:
+                video_id = extract_video_id(miniprogram_url)
+        
+        if not video_id:
             return
         
         await bot.send(ev, '正在生成视频摘要，请稍候...')
@@ -339,8 +399,8 @@ async def bilibili_help_command(bot, ev: CQEvent):
     help_text = """📺 B站视频解析和摘要插件
 
 🔧 功能说明：
-• 自动识别群内B站链接并发送小程序卡片
-• 回复包含B站链接的消息并发送"总结"或"摘要"获取AI摘要
+• 自动识别群内B站链接（包括QQ小程序分享）并发送基本信息
+• 回复包含B站链接的消息并发送"B站解析"、"AI总结"、"总结"或"摘要"获取AI摘要
 • 使用命令直接获取视频摘要
 
 📋 命令列表：
@@ -363,8 +423,9 @@ async def bilibili_help_command(bot, ev: CQEvent):
 • 如果功能异常，请尝试重新设置Cookie
 
 💡 使用提示：
-• 直接发送B站链接即可自动解析
-• 回复视频消息并发送"总结"获取摘要
-• 支持BV号、AV号和各种B站链接格式"""
+• 直接发送B站链接或小程序分享即可自动解析基本信息
+• 回复视频消息并发送"B站解析"或"AI总结"获取详细摘要
+• 支持BV号、AV号和各种B站链接格式
+• 支持QQ小程序分享的B站视频链接"""
     
     await bot.send(ev, help_text)
