@@ -96,7 +96,7 @@ def extract_miniprogram_bilibili_url(msg):
                         
     except Exception as e:
         sv.logger.error(f'解析小程序JSON失败: {str(e)}')
-        sv.logger.debug(f'原始消息: {msg}')
+        # sv.logger.debug(f'原始消息: {msg}')  # 注释掉debug日志避免重复输出
     
     return None
 
