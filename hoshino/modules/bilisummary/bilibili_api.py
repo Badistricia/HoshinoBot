@@ -221,31 +221,55 @@ def extract_video_id(url):
         # 清理URL，移除多余的引号和空格
         url = url.strip().strip('"\'')
         
-        # 处理BV号
-        bv_match = re.search(r'[Bb][Vv]([a-zA-Z0-9]+)', url)
+        print(f"[提取视频ID] 原始URL: {url}")
+        
+        # 处理BV号 - 修正正则表达式以匹配完整BV号
+        bv_match = re.search(r'[Bb][Vv]([0-9A-Za-z]+)', url)
         if bv_match:
-            return f"BV{bv_match.group(1)}"
+            bvid = f"BV{bv_match.group(1)}"
+            print(f"[提取视频ID] 提取到BV号: {bvid}")
+            return bvid
         
         # 处理AV号
         av_match = re.search(r'[Aa][Vv](\d+)', url)
         if av_match:
-            return f"av{av_match.group(1)}"
+            avid = f"av{av_match.group(1)}"
+            print(f"[提取视频ID] 提取到AV号: {avid}")
+            return avid
         
         # 处理URL参数中的bvid或aid
-        parsed_url = urlparse(url)
-        query_params = parse_qs(parsed_url.query)
+        try:
+            parsed_url = urlparse(url)
+            query_params = parse_qs(parsed_url.query)
+            
+            if 'bvid' in query_params:
+                bvid = query_params['bvid'][0]
+                print(f"[提取视频ID] 从URL参数提取到BV号: {bvid}")
+                return bvid
+            
+            if 'aid' in query_params:
+                avid = f"av{query_params['aid'][0]}"
+                print(f"[提取视频ID] 从URL参数提取到AV号: {avid}")
+                return avid
+        except Exception as parse_error:
+            print(f"[提取视频ID] 解析URL参数出错: {parse_error}")
         
-        if 'bvid' in query_params:
-            return query_params['bvid'][0]
+        # 如果以上方法都失败，尝试从路径中提取
+        path_parts = parsed_url.path.split('/')
+        for part in path_parts:
+            if part.startswith('BV') or part.startswith('bv'):
+                print(f"[提取视频ID] 从URL路径提取到BV号: {part}")
+                return part
+            elif part.startswith('AV') or part.startswith('av'):
+                print(f"[提取视频ID] 从URL路径提取到AV号: {part}")
+                return part
         
-        if 'aid' in query_params:
-            return f"av{query_params['aid'][0]}"
-        
+        print(f"[提取视频ID] 无法从URL提取视频ID: {url}")
         return None
     except Exception as e:
-        print(f"提取视频ID出错: {e}")
-        print(f"问题URL: {url}")
-        print(f"错误详情: {traceback.format_exc()}")
+        print(f"[提取视频ID] 提取视频ID出错: {e}")
+        print(f"[提取视频ID] 问题URL: {url}")
+        print(f"[提取视频ID] 错误详情: {traceback.format_exc()}")
         return None
 
 async def get_video_info(video_id, cookies=None):
@@ -301,50 +325,69 @@ async def get_video_subtitle(video_id, cookies=None):
             headers['Cookie'] = '; '.join([f"{k}={v}" for k, v in cookies.items()])
         
         # 首先获取视频信息，找到cid
+        print(f"[字幕] 开始获取视频信息: {video_id}")
         video_info = await get_video_info(video_id, cookies)
         if not video_info:
-            print(f"获取视频信息失败，无法获取字幕: {video_id}")
+            print(f"[字幕] 获取视频信息失败，无法获取字幕: {video_id}")
             return None
         
         cid = video_info['cid']
-        print(f"[字幕] 视频ID: {video_id}, CID: {cid}, 标题: {video_info['title']}")
+        title = video_info.get('title', '未知标题')
+        print(f"[字幕] 视频信息获取成功 - ID: {video_id}, CID: {cid}, 标题: {title}")
         
         # 获取字幕列表
-        # 确保aid是数字格式
-        aid = str(video_info['aid']).replace('av', '')
-        
-        # 直接使用视频信息中的bvid和aid，确保一致性
-        if 'bvid' in video_info:
+        # 确保使用正确的视频ID格式
+        if 'bvid' in video_info and video_info['bvid']:
             bvid = video_info['bvid']
             params = {
                 'bvid': bvid,
                 'cid': cid
             }
             print(f"[字幕] 使用BVID请求字幕: {bvid}")
+            id_type = 'bvid'
+            id_value = bvid
         else:
+            # 确保aid是纯数字格式
+            aid = str(video_info['aid']).replace('av', '')
             params = {
                 'aid': aid,
                 'cid': cid
             }
             print(f"[字幕] 使用AID请求字幕: {aid}")
+            id_type = 'aid'
+            id_value = aid
         
         # 获取WBI签名
-        img_key, sub_key = await get_wbi_keys()
+        img_key, sub_key = await get_wbi_keys(cookies)
         if img_key and sub_key:
             params = encrypt_wbi(params, img_key, sub_key)
             subtitle_url = f"https://api.bilibili.com/x/player/wbi/v2?{urlencode(params)}"
+            print(f"[字幕] 使用WBI签名请求字幕")
         else:
             # 降级使用普通API
-            if 'bvid' in params:
-                subtitle_url = f"https://api.bilibili.com/x/player/v2?bvid={params['bvid']}&cid={cid}"
-            else:
-                subtitle_url = f"https://api.bilibili.com/x/player/v2?aid={aid}&cid={cid}"
+            subtitle_url = f"https://api.bilibili.com/x/player/v2?{id_type}={id_value}&cid={cid}"
+            print(f"[字幕] 降级使用普通API请求字幕")
         
         print(f"[字幕] 请求字幕列表URL: {subtitle_url}")
         
         async with aiohttp.ClientSession() as session:
             async with session.get(subtitle_url, headers=headers) as resp:
                 res = await resp.json()
+                
+                if res['code'] != 0:
+                    print(f"[字幕] 获取字幕列表失败: {res.get('message', '未知错误')} (错误码: {res['code']})")
+                    # 尝试使用另一种ID类型
+                    if id_type == 'bvid' and 'aid' in video_info:
+                        print(f"[字幕] 尝试使用AID重新请求字幕")
+                        aid = str(video_info['aid']).replace('av', '')
+                        retry_url = f"https://api.bilibili.com/x/player/v2?aid={aid}&cid={cid}"
+                        async with session.get(retry_url, headers=headers) as retry_resp:
+                            res = await retry_resp.json()
+                    elif id_type == 'aid' and 'bvid' in video_info:
+                        print(f"[字幕] 尝试使用BVID重新请求字幕")
+                        retry_url = f"https://api.bilibili.com/x/player/v2?bvid={video_info['bvid']}&cid={cid}"
+                        async with session.get(retry_url, headers=headers) as retry_resp:
+                            res = await retry_resp.json()
                 
                 if res['code'] != 0 or 'subtitle' not in res['data']:
                     print(f"[字幕] 获取字幕列表失败: {res.get('message', '未知错误')}")
@@ -354,40 +397,62 @@ async def get_video_subtitle(video_id, cookies=None):
                 print(f"[字幕] 找到字幕数量: {len(subtitle_list)}")
                 
                 if not subtitle_list:
-                    print("[字幕] 视频没有字幕")
+                    print(f"[字幕] 视频 '{title}' 没有字幕")
                     return None
                 
-                # 获取第一个字幕（通常是中文）
-                # 检查字幕来源，优先选择官方字幕而非AI生成字幕
-                official_subtitles = [s for s in subtitle_list if not s.get('ai_status', 1)]
+                # 获取字幕（优先选择官方字幕）
+                # ai_status=0 表示官方字幕，ai_status=1 表示AI生成字幕
+                official_subtitles = [s for s in subtitle_list if s.get('ai_status', 1) == 0]
+                
                 if official_subtitles:
                     subtitle_item = official_subtitles[0]
-                    print("[字幕] 使用官方字幕")
+                    print(f"[字幕] 使用官方字幕: {subtitle_item.get('lan_doc', '未知语言')}")
                 else:
-                    # 如果没有官方字幕，检查字幕内容是否与视频标题相关
+                    # 如果没有官方字幕，使用AI生成字幕
                     subtitle_item = subtitle_list[0]
-                    print("[字幕] 使用AI生成字幕，请注意内容可能不准确")
+                    print(f"[字幕] 使用AI生成字幕 (可能不准确): {subtitle_item.get('lan_doc', '未知语言')}")
+                
+                # 打印字幕详细信息，便于调试
+                print(f"[字幕] 字幕详情: {json.dumps(subtitle_item, ensure_ascii=False)}")
                 
                 subtitle_content_url = subtitle_item['subtitle_url']
                 if not subtitle_content_url.startswith('http'):
                     subtitle_content_url = f"https:{subtitle_content_url}"
                 
                 print(f"[字幕] 字幕内容URL: {subtitle_content_url}")
-                print(f"[字幕] 字幕语言: {subtitle_item.get('lan_doc', '未知')}")
                 
                 # 获取字幕内容
-                async with session.get(subtitle_content_url, headers=headers) as subtitle_resp:
-                    subtitle_data = await subtitle_resp.json()
-                    
-                    # 提取纯文本
-                    text_lines = []
-                    for item in subtitle_data.get('body', []):
-                        if 'content' in item:
-                            text_lines.append(item['content'])
-                    
-                    subtitle_text = '\n'.join(text_lines)
-                    print(f"[字幕] 成功获取字幕，共{len(text_lines)}行，预览: {subtitle_text[:100]}...")
-                    return subtitle_text
+                try:
+                    async with session.get(subtitle_content_url, headers=headers) as subtitle_resp:
+                        if subtitle_resp.status != 200:
+                            print(f"[字幕] 获取字幕内容失败: HTTP状态码 {subtitle_resp.status}")
+                            return None
+                        
+                        subtitle_data = await subtitle_resp.json()
+                        
+                        # 提取纯文本
+                        text_lines = []
+                        for item in subtitle_data.get('body', []):
+                            if 'content' in item:
+                                text_lines.append(item['content'])
+                        
+                        if not text_lines:
+                            print(f"[字幕] 字幕内容为空")
+                            return None
+                        
+                        subtitle_text = '\n'.join(text_lines)
+                        print(f"[字幕] 成功获取字幕，共{len(text_lines)}行")
+                        print(f"[字幕] 字幕预览: {subtitle_text[:100]}...")
+                        
+                        # 验证字幕有效性
+                        if len(text_lines) < 3:
+                            print(f"[字幕] 警告: 字幕行数过少，可能不完整")
+                        
+                        return subtitle_text
+                except Exception as e:
+                    print(f"[字幕] 获取字幕内容出错: {e}")
+                    print(f"[字幕] 错误详情: {traceback.format_exc()}")
+                    return None
     
     except Exception as e:
         print(f"[字幕] 获取视频字幕出错: {e}")
