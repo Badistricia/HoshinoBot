@@ -21,46 +21,50 @@ def create_bilibili_miniapp(video_info):
     pic = video_info.get('pic', '')
     desc = video_info.get('desc', '')[:50] + '...' if len(video_info.get('desc', '')) > 50 else video_info.get('desc', '')
     bvid = video_info.get('bvid', '')
+    video_url = f"https://www.bilibili.com/video/{bvid}"
     
-    # 构建小程序JSON - 使用正确的JSON格式
+    # 构建小程序JSON - 使用正确的小程序格式
     miniapp_json = {
-        "app": "com.tencent.miniapp",
-        "desc": "",
-        "view": "view_8C8E89B49BE609866298ADDFF2DBABA4",
-        "ver": "1.0.0.103",
-        "prompt": "[QQ小程序]哔哩哔哩",
-        "appID": "",
-        "sourceName": "",
-        "actionData": "",
-        "actionData_A": "",
-        "sourceUrl": "",
+        "app": "com.tencent.miniapp_01",
+        "config": {
+            "autosize": True,
+            "ctime": 1234567890,
+            "forward": True,
+            "token": "xxx",
+            "type": "normal"
+        },
+        "extra": {
+            "app_type": 1,
+            "appid": 1109937557,
+            "uin": 123456789
+        },
         "meta": {
             "detail_1": {
                 "appid": "1109937557",
-                "appType": 0,
-                "title": title,
                 "desc": desc,
-                "icon": pic,
-                "preview": pic,
-                "url": f"m.q.qq.com/a/s/{bvid}",
-                "scene": 1036,
+                "gamePoints": "",
+                "gamePointsUrl": "",
                 "host": {
-                    "appid": "1109937557",
-                    "uin": 0
+                    "nick": author,
+                    "uin": 123456789
                 },
-                "shareTemplateId": "8C8E89B49BE609866298ADDFF2DBABA4",
-                "shareTemplateData": {}
+                "icon": "http://miniapp.gtimg.cn/public/appicon/432b76be3a548fc128acaa6c1ec90131_200.jpg",
+                "preview": pic,
+                "qqdocurl": video_url,
+                "scene": 1036,
+                "shareTemplateData": {},
+                "shareTemplateId": "",
+                "showLittleTail": "",
+                "title": title,
+                "url": video_url
             }
-        },
-        "text": "",
-        "sourceAd": "",
-        "extra": ""
+        }
     }
     
     # 使用json.dumps确保正确的JSON格式
     import json
-    json_str = json.dumps(miniapp_json, ensure_ascii=False, separators=(',', ':'))
-    return f"[CQ:json,data={json_str}]"
+    json_str = json.dumps(miniapp_json, ensure_ascii=False)
+    return f"[CQ:app,data={json_str}]"
 
 # 监听所有群消息，检测B站链接
 @sv.on_message('group')
