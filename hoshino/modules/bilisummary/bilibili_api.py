@@ -293,9 +293,11 @@ async def get_video_subtitle(video_id, cookies=None):
         # 首先获取视频信息，找到cid
         video_info = await get_video_info(video_id, cookies)
         if not video_info:
+            print(f"获取视频信息失败，无法获取字幕: {video_id}")
             return None
         
         cid = video_info['cid']
+        print(f"[字幕] 视频ID: {video_id}, CID: {cid}, 标题: {video_info['title']}")
         
         # 获取字幕列表
         params = {
@@ -312,17 +314,21 @@ async def get_video_subtitle(video_id, cookies=None):
             # 降级使用普通API
             subtitle_url = f"https://api.bilibili.com/x/player/v2?cid={cid}&aid={video_info['aid']}"
         
+        print(f"[字幕] 请求字幕列表URL: {subtitle_url}")
+        
         async with aiohttp.ClientSession() as session:
             async with session.get(subtitle_url, headers=headers) as resp:
                 res = await resp.json()
                 
                 if res['code'] != 0 or 'subtitle' not in res['data']:
-                    print(f"获取字幕列表失败: {res.get('message', '未知错误')}")
+                    print(f"[字幕] 获取字幕列表失败: {res.get('message', '未知错误')}")
                     return None
                 
                 subtitle_list = res['data']['subtitle']['subtitles']
+                print(f"[字幕] 找到字幕数量: {len(subtitle_list)}")
+                
                 if not subtitle_list:
-                    print("视频没有字幕")
+                    print("[字幕] 视频没有字幕")
                     return None
                 
                 # 获取第一个字幕（通常是中文）
@@ -330,6 +336,9 @@ async def get_video_subtitle(video_id, cookies=None):
                 subtitle_content_url = subtitle_item['subtitle_url']
                 if not subtitle_content_url.startswith('http'):
                     subtitle_content_url = f"https:{subtitle_content_url}"
+                
+                print(f"[字幕] 字幕内容URL: {subtitle_content_url}")
+                print(f"[字幕] 字幕语言: {subtitle_item.get('lan_doc', '未知')}")
                 
                 # 获取字幕内容
                 async with session.get(subtitle_content_url, headers=headers) as subtitle_resp:
@@ -341,10 +350,13 @@ async def get_video_subtitle(video_id, cookies=None):
                         if 'content' in item:
                             text_lines.append(item['content'])
                     
-                    return '\n'.join(text_lines)
+                    subtitle_text = '\n'.join(text_lines)
+                    print(f"[字幕] 成功获取字幕，共{len(text_lines)}行，预览: {subtitle_text[:100]}...")
+                    return subtitle_text
     
     except Exception as e:
-        print(f"获取视频字幕出错: {e}")
+        print(f"[字幕] 获取视频字幕出错: {e}")
+        print(f"[字幕] 错误详情: {traceback.format_exc()}")
         return None
 
 # 测试函数
