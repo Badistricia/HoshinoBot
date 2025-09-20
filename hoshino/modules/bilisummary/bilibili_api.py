@@ -313,10 +313,20 @@ async def get_video_subtitle(video_id, cookies=None):
         # 确保aid是数字格式
         aid = str(video_info['aid']).replace('av', '')
         
-        params = {
-            'cid': cid,
-            'aid': aid
-        }
+        # 直接使用视频信息中的bvid和aid，确保一致性
+        if 'bvid' in video_info:
+            bvid = video_info['bvid']
+            params = {
+                'bvid': bvid,
+                'cid': cid
+            }
+            print(f"[字幕] 使用BVID请求字幕: {bvid}")
+        else:
+            params = {
+                'aid': aid,
+                'cid': cid
+            }
+            print(f"[字幕] 使用AID请求字幕: {aid}")
         
         # 获取WBI签名
         img_key, sub_key = await get_wbi_keys()
@@ -325,7 +335,10 @@ async def get_video_subtitle(video_id, cookies=None):
             subtitle_url = f"https://api.bilibili.com/x/player/wbi/v2?{urlencode(params)}"
         else:
             # 降级使用普通API
-            subtitle_url = f"https://api.bilibili.com/x/player/v2?cid={cid}&aid={aid}"
+            if 'bvid' in params:
+                subtitle_url = f"https://api.bilibili.com/x/player/v2?bvid={params['bvid']}&cid={cid}"
+            else:
+                subtitle_url = f"https://api.bilibili.com/x/player/v2?aid={aid}&cid={cid}"
         
         print(f"[字幕] 请求字幕列表URL: {subtitle_url}")
         
