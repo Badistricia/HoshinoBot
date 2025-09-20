@@ -90,7 +90,7 @@ MODULES_ON = {
     # 'aoe4_watcher_bot',
     # 'aoe_test',
     'dailySum',
-    #"bilisummary",
+    "bilisummary",
     'aichat'
 
 
