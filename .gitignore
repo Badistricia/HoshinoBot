@@ -15,6 +15,7 @@ img/
 imgs/
 image/
 images/
+.idea/
 
 *.sqlite
 
