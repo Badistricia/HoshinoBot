@@ -185,7 +185,6 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
         if desc:
             response += f"📝 简介: {desc}\n"
         response += f"🔗 链接: {video_url}\n\n"
-        response += f"💡 回复此消息并发送「B站解析」或「AI总结」可获取视频摘要"
         
         # 发送视频基本信息
         await bot.send(ev, response)
