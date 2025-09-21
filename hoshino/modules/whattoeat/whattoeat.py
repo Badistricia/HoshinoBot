@@ -29,15 +29,15 @@ imgpath = os.path.join(os.path.expanduser(RES_DIR), 'img', 'foods')
 def get_food_type_and_message(time_str):
     """根据时间字符串确定食物类型和回复消息"""
     if time_str in ['早上', '早餐', '早饭']:
-        return 'breakfast', f'{time_str}去吃'
+        return 'breakfast', time_str + '去吃'
     elif time_str in ['中午', '午餐', '午饭']:
-        return 'lunch', f'{time_str}去吃'
+        return 'lunch', time_str + '去吃'
     elif time_str in ['晚上', '晚餐', '晚饭', '夜宵']:
-        return 'dinner', f'{time_str}去吃'
+        return 'dinner', time_str + '去吃'
     else:
         # 默认随机选择一种类型
         food_types = ['breakfast', 'lunch', 'dinner', 'snack']
-        return random.choice(food_types), f'{time_str}去吃'
+        return random.choice(food_types), time_str + '去吃'
 
 @sv.on_rex(r'^(今天|[早中午晚][上饭餐午]|夜宵)吃(什么|啥|点啥)')
 async def what_to_eat(bot, ev: CQEvent):
@@ -66,14 +66,14 @@ async def what_to_eat(bot, ev: CQEvent):
         food = random.choice(food_list)
     
     name = food.split('.')[0]
-    to_eat = f'{message_prefix}{name}吧~\n'
+    to_eat = message_prefix + name + '吧~\n'
     
     try:
-        foodimg = R.img(f'foods/{food}').cqcode
+        foodimg = R.img('foods/' + food).cqcode
         to_eat += str(foodimg)
     except Exception as e:
-        hoshino.logger.error(f'读取食物图片时发生错误{type(e)}')
-        to_eat = f'{message_prefix}{name}吧~\n[图片加载失败]'
+        hoshino.logger.error('读取食物图片时发生错误' + str(type(e)))
+        to_eat = message_prefix + name + '吧~\n[图片加载失败]'
     
     await bot.send(ev, to_eat, at_sender=True)
     _lmt.increase(uid)
@@ -94,19 +94,19 @@ async def eat_snack(bot, ev: CQEvent):
     # 随机选择一个小吃
     food = random.choice(snack_list)
     name = food.split('.')[0]
-    to_eat = f'来点{name}吧~\n'
+    to_eat = '来点' + name + '吧~\n'
     
     try:
-        foodimg = R.img(f'foods/{food}').cqcode
+        foodimg = R.img('foods/' + food).cqcode
         to_eat += str(foodimg)
     except Exception as e:
-        hoshino.logger.error(f'读取食物图片时发生错误{type(e)}')
-        to_eat = f'来点{name}吧~\n[图片加载失败]'
+        hoshino.logger.error('读取食物图片时发生错误' + str(type(e)))
+        to_eat = '来点' + name + '吧~\n[图片加载失败]'
     
     await bot.send(ev, to_eat, at_sender=True)
     _lmt.increase(uid)
 
-async def download_async(url: str, name: str):
+async def download_async(url, name):
     resp= await aiorequests.get(url, stream=True)
     if resp.status_code == 404:
         raise ValueError('文件不存在')
@@ -115,7 +115,7 @@ async def download_async(url: str, name: str):
         extension = filetype.guess_mime(content).split('/')[1]
     except:
         raise ValueError('不是有效文件类型')
-    abs_path = os.path.join(imgpath, f'{name}.{extension}')
+    abs_path = os.path.join(imgpath, name + '.' + extension)
     with open(abs_path, 'wb') as f:
         f.write(content)
 

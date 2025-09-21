@@ -1,6 +1,5 @@
 import asyncio
 import os
-from typing import Iterable
 
 import nonebot
 from aiocqhttp import Event as CQEvent
@@ -19,7 +18,7 @@ class HoshinoBot(nonebot.NoneBot):
         raise Exception("You should NOT instantiate a HoshinoBot! Use `hoshino.init()` instead.")
 
     @staticmethod
-    def get_self_ids() -> Iterable[str]:
+    def get_self_ids():
         return get_self_ids()
 
     @staticmethod
@@ -30,7 +29,7 @@ class HoshinoBot(nonebot.NoneBot):
         raise CanceledException('ServiceFunc of HoshinoBot finished.')
 
     @staticmethod
-    async def silence(ev: CQEvent, ban_time, skip_su=True):
+    async def silence(ev, ban_time, skip_su=True):
         return await util.silence(ev, ban_time, skip_su)
 
 
@@ -49,7 +48,7 @@ _bot = None
 logger = log.new_logger('hoshino', config.DEBUG)
 
 
-def init() -> HoshinoBot:
+def init():
     global _bot
     nonebot.init(config)
     _bot = nonebot.get_bot()
@@ -74,11 +73,11 @@ def init() -> HoshinoBot:
     return _bot
 
 
-def get_bot() -> HoshinoBot:
+def get_bot():
     if _bot is None:
         raise ValueError('HoshinoBot has not been initialized')
     return _bot
 
 
-def get_self_ids() -> Iterable[str]:
+def get_self_ids():
     return list(get_bot()._wsr_api_clients.keys())
