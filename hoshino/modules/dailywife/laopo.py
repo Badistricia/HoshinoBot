@@ -174,19 +174,16 @@ async def change_wife(bot, ev: CQEvent):
     # 获取新老婆
     all_list = await bot.get_group_member_list(group_id=groupid)
     id_list = get_member_list(all_list)
-    id_list.remove(bot_id)
-    id_list.remove(user_id)
     
-    # 检查当前老婆是否还在群内
+    # 安全移除机器人和用户自己
+    if bot_id in id_list:
+        id_list.remove(bot_id)
+    if user_id in id_list:
+        id_list.remove(user_id)
+    
+    # 移除当前老婆（如果在群内）
     current_wife = int(config[str(user_id)][0])
-    current_wife_in_group = False
-    for member in all_list:
-        if member['user_id'] == current_wife:
-            current_wife_in_group = True
-            break
-    
-    # 如果当前老婆还在群内，则从可选列表中移除
-    if current_wife_in_group:
+    if current_wife in id_list:
         id_list.remove(current_wife)
     
     for record_id in list(config):
