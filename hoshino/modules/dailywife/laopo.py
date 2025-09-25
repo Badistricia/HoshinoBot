@@ -216,7 +216,7 @@ async def change_wife(bot, ev: CQEvent):
     if change_count == 1:
         prefix = "今日老婆不合心意？你这个挑剔的家伙！新老婆是"
     else:  # change_count == 2
-        prefix = "哇！又换老婆？你这个情场浪子/渣男！最后一个老婆是"
+        prefix = "哇！又换老婆？你这个渣男！最后一个老婆是"
     
     await bot.send(ev, f"{prefix}{result}", at_sender=True)
     
