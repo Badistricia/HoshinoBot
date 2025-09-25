@@ -177,9 +177,17 @@ async def change_wife(bot, ev: CQEvent):
     id_list.remove(bot_id)
     id_list.remove(user_id)
     
-    # 移除当前老婆和其他人已有的老婆
+    # 检查当前老婆是否还在群内
     current_wife = int(config[str(user_id)][0])
-    id_list.remove(current_wife)
+    current_wife_in_group = False
+    for member in all_list:
+        if member['user_id'] == current_wife:
+            current_wife_in_group = True
+            break
+    
+    # 如果当前老婆还在群内，则从可选列表中移除
+    if current_wife_in_group:
+        id_list.remove(current_wife)
     
     for record_id in list(config):
         if record_id != str(user_id) and config[record_id][1] == today:

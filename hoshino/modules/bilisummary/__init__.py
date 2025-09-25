@@ -107,8 +107,11 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
     msg = str(ev.message).strip()
     plain_msg = str(ev.message.extract_plain_text()).strip()
     
-    # 移除可能的markdown格式符号
+    # 移除可能的markdown格式符号和其他特殊格式
     plain_msg = plain_msg.strip('`').strip()
+    # 处理被反引号完全包围的情况，如 `https://b23.tv/xxxx`
+    if plain_msg.startswith('`') and plain_msg.endswith('`'):
+        plain_msg = plain_msg[1:-1].strip()
     
     # 检查是否包含B站链接（普通链接或小程序）
     video_id = None
@@ -210,6 +213,11 @@ async def bilibili_summary_reply(bot, ev: CQEvent):
         reply_msg = await bot.get_msg(message_id=int(reply_id))
         reply_content = str(reply_msg['message'])
         reply_plain_content = reply_msg.get('raw_message', '')
+        
+        # 处理被反引号包围的链接
+        reply_plain_content = reply_plain_content.strip('`').strip()
+        if reply_plain_content.startswith('`') and reply_plain_content.endswith('`'):
+            reply_plain_content = reply_plain_content[1:-1].strip()
         
         # 检查引用的消息是否包含B站链接（普通链接或小程序）
         video_id = None
