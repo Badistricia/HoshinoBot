@@ -5,12 +5,46 @@ import time
 import hashlib
 import random
 import string
-import qrcode
+# qrcode依赖已移除
 import asyncio
 import os
 import traceback
+import urllib.parse
 from io import BytesIO
 from urllib.parse import urlparse, parse_qs, urlencode
+
+# 提取视频ID的函数
+async def extract_video_id_async(text):
+    """从文本中提取B站视频ID（BV号或av号）"""
+    if not text:
+        return None
+        
+    # 匹配BV号或av号的正则表达式
+    pattern = re.compile(r'(?:https?://)?(?:www\.)?(?:bilibili\.com/video/|b23\.tv/|m\.bilibili\.com/video/)(BV[A-Za-z0-9]+|av\d+)|(?:^|\s)(BV[A-Za-z0-9]+|av\d+)(?:\s|$)', re.IGNORECASE)
+    
+    # 尝试直接匹配
+    match = pattern.search(text)
+    if match:
+        # 返回第一个非None的组
+        return next((g for g in match.groups() if g), None)
+    
+    # 如果是短链接，尝试解析
+    if 'b23.tv' in text:
+        try:
+            short_url = re.search(r'https?://b23\.tv/\w+', text)
+            if short_url:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(short_url.group(), allow_redirects=False) as resp:
+                        if resp.status == 302:
+                            location = resp.headers.get('Location')
+                            if location:
+                                match = pattern.search(location)
+                                if match:
+                                    return next((g for g in match.groups() if g), None)
+        except Exception as e:
+            print(f"解析短链接出错: {e}")
+    
+    return None
 
 # WBI签名相关函数
 def get_mixin_key(orig: str) -> str:
@@ -75,140 +109,21 @@ def encrypt_wbi(params: dict, img_key: str, sub_key: str) -> dict:
 
 # 扫码登录相关函数
 async def generate_qrcode():
-    """生成B站登录二维码"""
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        }
-        
-        # 获取二维码内容
-        async with aiohttp.ClientSession() as session:
-            async with session.get('https://passport.bilibili.com/qrcode/getLoginUrl', headers=headers) as resp:
-                res = await resp.json()
-                if res['code'] != 0:
-                    print(f"获取登录二维码失败: {res['message']}")
-                    return None, None
-                
-                login_url = res['data']['url']
-                oauthKey = res['data']['oauthKey']
-                
-                # 生成二维码
-                qr = qrcode.QRCode(
-                    version=1,
-                    error_correction=qrcode.constants.ERROR_CORRECT_L,
-                    box_size=10,
-                    border=4,
-                )
-                qr.add_data(login_url)
-                qr.make(fit=True)
-                
-                # 在控制台打印二维码
-                try:
-                    # 尝试使用终端打印二维码
-                    from qrcode.main import QRCode
-                    qr.print_ascii(invert=True)
-                    print("\n请使用B站APP扫描上方二维码登录")
-                except:
-                    # 如果无法在终端打印，则保存为图片
-                    img = qr.make_image(fill_color="black", back_color="white")
-                    img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "login_qrcode.png")
-                    img.save(img_path)
-                    print(f"登录二维码已生成，请扫描: {img_path}")
-                
-                # 同时提供链接
-                print(f"\n或者直接打开此链接扫码: {login_url}")
-                
-                return oauthKey, login_url
-    except Exception as e:
-        print(f"生成登录二维码出错: {e}")
-        return None, None
+    """生成B站登录二维码 - 已禁用，不再支持二维码登录"""
+    print("二维码登录功能已禁用")
+    return None, None
 
 async def check_qrcode_status(oauthKey):
-    """检查二维码扫描状态"""
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Content-Type': 'application/x-www-form-urlencoded',
-        }
-        
-        data = {
-            'oauthKey': oauthKey
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post('https://passport.bilibili.com/qrcode/getLoginInfo', headers=headers, data=data) as resp:
-                res = await resp.json()
-                
-                # 扫码成功
-                if res.get('status', False):
-                    cookies = {}
-                    for url in res.get('data', {}).get('url', '').split('&'):
-                        if '=' in url:
-                            key, value = url.split('=', 1)
-                            cookies[key] = value
-                    
-                    return {
-                        'status': 'success',
-                        'cookies': cookies
-                    }
-                
-                # 扫码失败或等待扫码
-                else:
-                    code = res.get('data', -1)
-                    message = {
-                        -1: "二维码尚未扫描",
-                        -2: "二维码已过期",
-                        -4: "二维码已扫描，等待确认",
-                        -5: "二维码已扫描，等待确认"
-                    }.get(code, f"未知状态: {code}")
-                    
-                    return {
-                        'status': 'waiting',
-                        'message': message,
-                        'code': code
-                    }
-    except Exception as e:
-        print(f"检查二维码状态出错: {e}")
-        return {
-            'status': 'error',
-            'message': str(e)
-        }
+    """检查二维码扫描状态 - 已禁用，不再支持二维码登录"""
+    print("二维码登录功能已禁用")
+    return {
+        'status': 'error',
+        'message': '二维码登录功能已禁用'
+    }
 
 async def login_with_qrcode():
-    """完整的扫码登录流程"""
-    oauthKey, img_path = await generate_qrcode()
-    if not oauthKey:
-        return None
-    
-    print("请使用B站APP扫描二维码登录")
-    
-    # 循环检查扫码状态
-    for i in range(120):  # 最多等待120秒
-        status = await check_qrcode_status(oauthKey)
-        
-        if status['status'] == 'success':
-            print("登录成功!")
-            return status['cookies']
-        
-        elif status['status'] == 'waiting':
-            if status['code'] == -4 or status['code'] == -5:
-                print("二维码已扫描，等待确认...请在手机B站APP中点击确认按钮")
-            else:
-                print(f"等待扫码: {status['message']}")
-        
-        else:
-            print(f"登录出错: {status.get('message', '未知错误')}")
-            break
-        
-        # 根据状态调整检查频率
-        if status['code'] == -4 or status['code'] == -5:
-            # 已扫描等待确认时，更频繁地检查
-            await asyncio.sleep(0.5)
-        else:
-            # 未扫描时，降低检查频率
-            await asyncio.sleep(1)
-    
-    print("登录超时或失败")
+    """完整的扫码登录流程 - 已禁用，不再支持二维码登录"""
+    print("二维码登录功能已禁用")
     return None
 
 # 提取视频ID

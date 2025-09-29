@@ -353,6 +353,14 @@ class Service:
                 except Exception as e:
                     self.logger.error(f'{type(e)} occured when doing scheduled job {func.__name__}.')
                     self.logger.exception(e)
+            
+            # 确保nonebot.scheduler存在
+            if not hasattr(nonebot, 'scheduler'):
+                from apscheduler.schedulers.asyncio import AsyncIOScheduler
+                nonebot.scheduler = AsyncIOScheduler()
+                nonebot.scheduler.start()
+                self.logger.info('Scheduler initialized in service.py')
+                
             return nonebot.scheduler.scheduled_job(*args, **kwargs)(wrapper)
         return deco
 

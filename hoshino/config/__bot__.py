@@ -47,20 +47,13 @@ MODULES_ON = {
     'botmanage',
     'dice',
     'groupmaster', #群聊基础功能
-    'hourcall', #报时功能
-    'kancolle', #舰娘的远征
-    'mikan', #蜜柑订阅番剧
+    # 'mikan', #蜜柑订阅番剧
     'pcrclanbattle',
     'priconne',
     'picfinder',
     #'setu',
     #'translate',
     #'twitter-v2',
-    # 'test',    #测试下看看
-
-
-
-
     'reload',#重启
     'hiumsentences',#网抑云语录
     # 'generator',#营销文生成等五个小功能

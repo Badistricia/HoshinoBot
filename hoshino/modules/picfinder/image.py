@@ -1,7 +1,7 @@
 import asyncio
 import requests
 import re
-import cloudscraper
+# 移除cloudscraper依赖，改用requests
 from functools import partial
 
 from lxml import etree
@@ -473,15 +473,18 @@ class ascii2d():
         self.num = num
         self.host = HOST_CUSTOM['ASCII'] or "https://ascii2d.net"
         self.header = "————>ascii2d<————"
-        self.scraper = cloudscraper.create_scraper()
+        # 使用普通requests替代cloudscraper
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
+        })
 
     async def get_search_data(self, url: str, data=None):
         if data is not None:
             html = data
         else:
-            # html_data = await aiorequests.get(url, timeout=15, proxies=proxies)
-            # html = etree.HTML(await html_data.text)
-            html_data = await asyncio.get_running_loop().run_in_executor(None, partial(self.scraper.get, url, timeout=15, proxies=proxies))
+            # 使用普通requests替代cloudscraper
+            html_data = await asyncio.get_running_loop().run_in_executor(None, partial(self.session.get, url, timeout=15, proxies=proxies))
             html = etree.HTML(html_data.text)
 
         all_data = html.xpath('//div[@class="row item-box"]')
