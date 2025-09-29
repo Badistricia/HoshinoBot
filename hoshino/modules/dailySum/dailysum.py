@@ -26,7 +26,15 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
 from apscheduler.triggers.cron import CronTrigger
-from nonebot import scheduler
+try:
+    from nonebot import scheduler
+except AttributeError:
+    # 如果nonebot.scheduler不存在，创建一个新的scheduler
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    import nonebot
+    if not hasattr(nonebot, 'scheduler'):
+        nonebot.scheduler = AsyncIOScheduler()
+        nonebot.scheduler.start()
 from nonebot.message import MessageSegment
 
 from hoshino import priv, logger, get_bot
@@ -1511,4 +1519,4 @@ async def load_group_config():
         return True
     except Exception as e:
         log_error_msg(f"加载群配置失败: {str(e)}")
-        return False 
+        return False

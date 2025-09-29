@@ -1,0 +1,48 @@
+# HoshinoBot Python 3.11 compatibility dependencies
+# Core dependencies
+Quart>=0.18.0
+MarkupSafe>=2.0.0
+Jinja2>=3.0.0
+werkzeug>=2.0.0
+wsproto>=1.0.0
+nonebot[scheduler]>=1.8.0
+aiocqhttp>=1.4.3
+aiohttp>=3.8.4
+nonebot==1.8.0
+openai>=0.27.0
+python-Levenshtein>=0.20.9
+apscheduler>=3.9.1
+pyyaml
+
+
+# Network and data processing
+lxml>=4.9.2
+pytz>=2023.3
+requests>=2.30.0
+sogou_tr_free>=0.0.11
+zhconv>=1.4.3
+httpx>=0.24.0
+cloudscraper==1.2.69
+ujson>=5.7.0
+
+# Image processing
+Pillow>=9.5.0
+matplotlib>=3.5.0
+numpy>=1.22.4
+
+# Data parsing and storage
+beautifulsoup4>=4.9.3
+pygtrie>=2.3.3
+tinydb>=4.1.1
+sqlitedict>=2.1.0
+PyYAML>=6.0
+filetype>=1.2.0
+fuzzywuzzy>=0.18.0
+
+# Social media
+peony-twitter[all]>=2.1.2
+
+# Module specific dependencies
+html2image>=2.0.1
+python-dateutil>=2.8.2
+apscheduler>=3.9.1
