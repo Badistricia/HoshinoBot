@@ -31,7 +31,14 @@ from .argparse.argtype import *
 from .battlemaster import BattleMaster
 from .exception import *
 
-plt.style.use('seaborn-pastel')
+try:
+    plt.style.use('seaborn-pastel')  # 兼容旧版Matplotlib
+except:
+    try:
+        plt.style.use('seaborn-v0_8-pastel')  # 适配Python 3.11+的Matplotlib
+    except:
+        # 如果两种样式都不可用，使用默认样式
+        pass
 plt.rcParams['font.family'] = ['DejaVuSans', 'Microsoft YaHei', 'SimSun', ]
 
 USAGE_ADD_CLAN = '!建会 N公会名 S服务器代号'

@@ -116,10 +116,10 @@ class KeywordTrigger(BaseTrigger):
             keyword = util.normalize_str(keyword)
         if keyword in self.allkw:
             self.allkw[keyword].append(sf)
-            hoshino.logger.warning(f"Keyword trigger `{keyword}` added multi handler: `{sf.__name__}`")
+            # hoshino.logger.warning(f"Keyword trigger `{keyword}` added multi handler: `{sf.__name__}`")
         else:
             self.allkw[keyword] = [sf]
-            hoshino.logger.debug(f"Succeed to add keyword trigger `{keyword}`")
+            # hoshino.logger.debug(f"Succeed to add keyword trigger `{keyword}`")
 
     def find_handler(self, event: CQEvent) -> Iterable["ServiceFunc"]:
         for kw, sfs in self.allkw.items():

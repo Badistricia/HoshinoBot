@@ -51,6 +51,14 @@ logger = log.new_logger('hoshino', config.DEBUG)
 def init():
     global _bot
     nonebot.init(config)
+    
+    # 确保初始化调度器
+    if not hasattr(nonebot, 'scheduler'):
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        nonebot.scheduler = AsyncIOScheduler()
+        nonebot.scheduler.start()
+        logger.info('Scheduler initialized successfully')
+    
     _bot = nonebot.get_bot()
     _bot.get_self_ids = HoshinoBot.get_self_ids
     _bot.finish = HoshinoBot.finish
