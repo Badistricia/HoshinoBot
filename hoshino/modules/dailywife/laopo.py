@@ -110,10 +110,7 @@ async def dailywife(bot, ev: CQEvent):
     config = load_group_config(groupid)
     change_count = 0
     moe_trait = ""
-
-    if priv.check_priv(ev, priv.SUPERUSER):
-        wife_id = bot_id
-    elif config != None:
+    if config != None:
         if str(user_id) in list(config):
             if config[str(user_id)][1] == today:
                 wife_id = config[str(user_id)][0]
