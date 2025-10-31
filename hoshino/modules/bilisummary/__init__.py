@@ -192,7 +192,7 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
         
         # 检查是否为短视频（5分钟以内），添加下载提示
         if duration <= 300:  # 5分钟 = 300秒
-            response += f"\n💡 检测到短视频（{duration_str}），回复"下载视频"可获取压缩后的视频文件"
+            response += f"\n💡 检测到短视频（{duration_str}），回复\"下载视频\"可获取压缩后的视频文件"
         
         response += "\n"
         
@@ -593,7 +593,7 @@ async def video_download_help_command(bot, ev: CQEvent):
     help_text = video_downloader.get_installation_guide()
     help_text += "\n\n📖 使用方法：\n"
     help_text += "1. 发送或转发包含B站链接的消息\n"
-    help_text += "2. 回复该消息并发送"下载视频"\n"
+    help_text += "2. 回复该消息并发送\"下载视频\"\n"
     help_text += "3. 等待机器人处理并发送压缩后的视频文件\n\n"
     help_text += "⚠️ 注意事项：\n"
     help_text += "• 仅支持5分钟以内的短视频\n"
