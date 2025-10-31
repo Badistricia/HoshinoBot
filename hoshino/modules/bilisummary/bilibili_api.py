@@ -31,18 +31,55 @@ async def extract_video_id_async(text):
     # 如果是短链接，尝试解析
     if 'b23.tv' in text:
         try:
-            short_url = re.search(r'https?://b23\.tv/\w+', text)
-            if short_url:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(short_url.group(), allow_redirects=False) as resp:
-                        if resp.status == 302:
-                            location = resp.headers.get('Location')
-                            if location:
-                                match = pattern.search(location)
-                                if match:
-                                    return next((g for g in match.groups() if g), None)
+            # 更宽松的短链接匹配，支持更多格式
+            short_url_match = re.search(r'https?://b23\.tv/[A-Za-z0-9]+', text)
+            if not short_url_match:
+                # 如果没有http前缀，尝试匹配纯b23.tv链接
+                short_url_match = re.search(r'b23\.tv/[A-Za-z0-9]+', text)
+                if short_url_match:
+                    short_url = 'https://' + short_url_match.group()
+                else:
+                    return None
+            else:
+                short_url = short_url_match.group()
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                # 允许重定向，获取最终URL
+                async with session.get(short_url, headers=headers, allow_redirects=True, timeout=10) as resp:
+                    final_url = str(resp.url)
+                    print(f"短链接 {short_url} 重定向到: {final_url}")
+                    
+                    # 从最终URL中提取视频ID
+                    match = pattern.search(final_url)
+                    if match:
+                        video_id = next((g for g in match.groups() if g), None)
+                        print(f"从重定向URL中提取到视频ID: {video_id}")
+                        return video_id
+                    
+                    # 如果最终URL没有匹配，尝试从响应内容中查找
+                    if resp.status == 200:
+                        content = await resp.text()
+                        # 在页面内容中查找视频ID
+                        content_match = re.search(r'(?:bvid["\']?\s*[:=]\s*["\']?|/video/)(BV[A-Za-z0-9]+)', content, re.IGNORECASE)
+                        if content_match:
+                            video_id = content_match.group(1)
+                            print(f"从页面内容中提取到视频ID: {video_id}")
+                            return video_id
+                    
+        except asyncio.TimeoutError:
+            print(f"解析短链接超时: {short_url}")
         except Exception as e:
             print(f"解析短链接出错: {e}")
+            traceback.print_exc()
     
     return None
 
