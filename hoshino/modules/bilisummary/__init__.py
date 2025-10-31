@@ -7,7 +7,7 @@ from .bilibili_api import extract_video_id_async, get_video_info, get_video_subt
 from .ai_summary import generate_summary
 from .video_downloader import VideoDownloader
 
-sv = Service('bilisummary', help_='B站视频解析和摘要\n自动识别B站链接（包括小程序）发送基本信息\n回复"B站解析"或"AI总结"可获取AI摘要', enable_on_default=True)
+sv = Service('bilisummary', help_='B站视频解析和摘要\n自动识别B站链接（包括小程序）发送基本信息\n5分钟以内短视频自动下载\n回复"B站解析"或"AI总结"可获取AI摘要', enable_on_default=True)
 
 # B站链接正则表达式
 BILIBILI_URL_PATTERN = re.compile(
@@ -101,6 +101,75 @@ def extract_miniprogram_bilibili_url(msg):
     
     return None
 
+async def auto_download_short_video(bot, ev: CQEvent, video_id: str, title: str, duration_str: str):
+    """自动下载短视频的辅助函数"""
+    try:
+        # 检查工具可用性
+        tools = video_downloader.check_tools()
+        if not tools['bbdown'] or not tools['ffmpeg']:
+            missing_tools = []
+            if not tools['bbdown']:
+                missing_tools.append('BBDown')
+            if not tools['ffmpeg']:
+                missing_tools.append('FFmpeg')
+            
+            await bot.send(ev, f'💡 检测到短视频（{duration_str}），但缺少下载工具：{", ".join(missing_tools)}\n发送"视频下载帮助"查看安装指南')
+            return
+        
+        # 发送处理中提示
+        await bot.send(ev, f'🎬 检测到短视频（{duration_str}），正在自动下载压缩中...')
+        
+        # 查找cookies文件路径
+        cookies_path = None
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        possible_cookies_paths = [
+            os.path.join(current_dir, 'cookies.txt'),
+            os.path.join(current_dir, 'cookie.txt'),
+            'cookies.txt',
+            'cookie.txt'
+        ]
+        
+        for path in possible_cookies_paths:
+            if os.path.exists(path):
+                cookies_path = path
+                break
+        
+        # 处理视频
+        result = await video_downloader.process_short_video(
+            video_id, 
+            target_size_mb=10,  # 目标10MB
+            cookies_path=cookies_path
+        )
+        
+        if isinstance(result, tuple) and len(result) == 2:
+            video_file, message = result
+            
+            if video_file and os.path.exists(video_file):
+                # 发送视频文件
+                file_size_mb = os.path.getsize(video_file) / (1024 * 1024)
+                
+                # 构建CQ码发送视频
+                from hoshino.typing import MessageSegment
+                video_msg = MessageSegment.video(f"file:///{video_file}")
+                
+                await bot.send(ev, f'✅ 短视频下载完成！\n📺 {title}\n📁 文件大小: {file_size_mb:.2f}MB')
+                await bot.send(ev, video_msg)
+                
+                # 清理临时文件
+                try:
+                    temp_dir = os.path.dirname(video_file)
+                    video_downloader.cleanup_temp_files(temp_dir)
+                except Exception as cleanup_error:
+                    sv.logger.error(f'清理临时文件失败: {cleanup_error}')
+            else:
+                await bot.send(ev, f'❌ 短视频处理失败: {message}')
+        else:
+            await bot.send(ev, '❌ 短视频处理过程中发生未知错误')
+            
+    except Exception as process_error:
+        sv.logger.error(f'自动下载短视频失败: {process_error}')
+        await bot.send(ev, f'❌ 自动下载短视频失败: {str(process_error)}')
+
 # 监听所有群消息，检测B站链接
 @sv.on_message('group')
 async def auto_bilibili_parse(bot, ev: CQEvent):
@@ -190,14 +259,14 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
             response += f"📝 简介: {desc}\n"
         response += f"🔗 链接: {video_url}\n"
         
-        # 检查是否为短视频（5分钟以内），添加下载提示
-        if duration <= 300:  # 5分钟 = 300秒
-            response += f"\n💡 检测到短视频（{duration_str}），回复\"下载视频\"可获取压缩后的视频文件"
-        
         response += "\n"
         
         # 发送视频基本信息
         await bot.send(ev, response)
+        
+        # 检查是否为短视频（5分钟以内），自动下载
+        if duration <= 300:  # 5分钟 = 300秒
+            await auto_download_short_video(bot, ev, video_id, title, duration_str)
         
     except Exception as e:
         sv.logger.error(f'解析B站链接失败: {str(e)}')
@@ -592,9 +661,12 @@ async def video_download_help_command(bot, ev: CQEvent):
     """视频下载功能帮助"""
     help_text = video_downloader.get_installation_guide()
     help_text += "\n\n📖 使用方法：\n"
-    help_text += "1. 发送或转发包含B站链接的消息\n"
-    help_text += "2. 回复该消息并发送\"下载视频\"\n"
-    help_text += "3. 等待机器人处理并发送压缩后的视频文件\n\n"
+    help_text += "🔸 自动下载（推荐）：\n"
+    help_text += "  • 直接发送包含B站链接的消息\n"
+    help_text += "  • 5分钟以内的短视频会自动下载\n\n"
+    help_text += "🔸 手动下载：\n"
+    help_text += "  • 回复包含B站链接的消息并发送\"下载视频\"\n"
+    help_text += "  • 适用于需要手动控制的情况\n\n"
     help_text += "⚠️ 注意事项：\n"
     help_text += "• 仅支持5分钟以内的短视频\n"
     help_text += "• 需要先设置B站Cookie\n"
