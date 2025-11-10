@@ -1249,6 +1249,25 @@ async def backup_logs():
             log_info(f"成功解析并保存了 {len(group_messages)} 个群的聊天记录")
         else:
             log_warning(f"没有从备份日志中解析到任何群聊消息")
+        
+        # 清理旧的日志文件，只保留前一天的
+        log_info("开始清理旧的日志文件...")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        # 遍历 logs 目录，删除不是今天和昨天的日志文件
+        for filename in os.listdir(LOG_DIR):
+            if filename.startswith('run_log_') and filename.endswith('.log'):
+                # 提取日期部分
+                try:
+                    file_date = filename.replace('run_log_', '').replace('.log', '')
+                    if file_date != today and file_date != yesterday:
+                        old_log_path = os.path.join(LOG_DIR, filename)
+                        os.remove(old_log_path)
+                        log_info(f"已删除旧日志文件: {filename}")
+                except Exception as e:
+                    log_warning(f"删除旧日志文件 {filename} 失败: {str(e)}")
+        
+        log_info("旧日志清理完成")
             
     except Exception as e:
         log_error_msg(f"备份日志文件出错: {str(e)}")

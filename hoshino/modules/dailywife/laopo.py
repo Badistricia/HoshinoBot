@@ -91,8 +91,10 @@ def load_group_config(group_id: str) -> int:
     except:
         return None
 
-def write_group_config(group_id: str, link_id:str, wife_id:str, date:str, config, change_count=0, moe_trait="") -> int:
+def write_group_config(group_id: str, link_id:str, wife_id, date:str, config, change_count=0, moe_trait="") -> int:
     config_file = os.path.join(os.path.dirname(__file__), 'config', f'{group_id}.json')
+    # 确保 wife_id 统一转换为字符串存储
+    wife_id = str(wife_id)
     if config != None:    
         config[link_id] = [wife_id, date, change_count, moe_trait]
     else:
@@ -134,7 +136,10 @@ async def dailywife(bot, ev: CQEvent):
                     del config[record_id]
                 else:
                     try:
-                        id_list.remove(int(config[record_id][0]))
+                        # 移除已经被其他人选中的老婆，确保互斥
+                        taken_wife_id = int(config[record_id][0])
+                        if taken_wife_id in id_list:
+                            id_list.remove(taken_wife_id)
                     except:
                         del config[record_id]
         wife_id = choice(id_list)
@@ -183,10 +188,13 @@ async def change_wife(bot, ev: CQEvent):
     if current_wife in id_list:
         id_list.remove(current_wife)
     
+    # 移除其他人已经选中的老婆，确保互斥
     for record_id in list(config):
         if record_id != str(user_id) and config[record_id][1] == today:
             try:
-                id_list.remove(int(config[record_id][0]))
+                taken_wife_id = int(config[record_id][0])
+                if taken_wife_id in id_list:
+                    id_list.remove(taken_wife_id)
             except:
                 pass
     
