@@ -23,7 +23,7 @@ AI_MODEL = "deepseek-chat"  # AI模型名称
 AI_TEMPERATURE = 1.0  # AI生成温度
 
 # Gemini配置（用于周报等需要直接生成HTML的场景）
-GEMINI_API_KEY = ""  # Gemini API密钥，留空则不启用周报功能
+GEMINI_API_KEY = "AIzaSyDnqkxz2EqTax7XeEP-TbKV6VEsyjOcB-4"  # Gemini API密钥，留空则不启用周报功能
 USE_GEMINI_FOR_WEEKLY = True  # 是否使用Gemini生成周报
 
 # 群配置
@@ -375,8 +375,8 @@ SIMPLE_DARK_HTML_TEMPLATE = """
 
 # Gemini 配置
 # Gemini 配置
-GEMINI_API_KEY = "AIzaSyCJGCR32LWR_Fk8OBNQaY3qdxlIFxY5KuY"  # Gemini API密钥
-GEMINI_MODEL = "gemini-pro"  # Gemini 模型名称
+GEMINI_API_KEY = "AIzaSyDnqkxz2EqTax7XeEP-TbKV6VEsyjOcB-4"  # Gemini API密钥
+GEMINI_MODEL = "gemini-2.5-flash"  # Gemini 模型名称
 
 PROMPT_WEEKLY_TEMPLATE = """请根据【{group_name}】过去一周的聊天记录，整理一份QQ群周报，要求：
 
