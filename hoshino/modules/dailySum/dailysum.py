@@ -586,18 +586,65 @@ async def save_group_logs(group_messages, date_str):
 async def split_log_files(day_offset=0, target_group=None):
     """
     分割日志文件，提取指定日期的群聊消息
+    优先读取已切割好的JSON文件，避免重复解析
     :param day_offset: 日期偏移，0表示今天，1表示昨天，以此类推
     :param target_group: 目标群号，为None时解析所有群
     """
-    # 计算日期范围
+    # 计算日期范围（按4点分割，与日报统计时间一致）
     now = datetime.now()
     target_date = now - timedelta(days=day_offset)
-    start_time = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0)
-    end_time = datetime(target_date.year, target_date.month, target_date.day, 23, 59, 59)
-    date_str = target_date.strftime('%Y-%m-%d')
+    
+    # 如果是今天（day_offset=0），范围是昨天4点到今天4点
+    # 如果是历史（day_offset>=1），范围是目标日期4点到次日4点
+    if day_offset == 0:
+        start_time = datetime(target_date.year, target_date.month, target_date.day, 4, 0, 0) - timedelta(days=1)
+        end_time = datetime(target_date.year, target_date.month, target_date.day, 4, 0, 0)
+    else:
+        start_time = datetime(target_date.year, target_date.month, target_date.day, 4, 0, 0)
+        end_time = start_time + timedelta(days=1)
+    
+    date_str = start_time.strftime('%Y-%m-%d')
     
     log_info(f"开始分割日志文件，目标日期: {date_str}")
     log_info(f"日期偏移: {day_offset}，时间范围: {start_time} - {end_time}")
+    
+    # 优先检查是否已存在切割好的JSON文件
+    if target_group:
+        # 如果指定了目标群，直接尝试读取该群的JSON
+        json_path = os.path.join(DATA_DIR, f"{target_group}_{date_str}.json")
+        if os.path.exists(json_path):
+            log_info(f"找到已切割的JSON文件: {json_path}，直接加载")
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    messages = json.load(f)
+                log_info(f"成功加载群 {target_group} 的聊天记录，共 {len(messages)} 条消息")
+                return {target_group: messages}, date_str
+            except Exception as e:
+                log_warning(f"加载JSON文件失败: {str(e)}，将重新解析日志")
+    else:
+        # 如果没有指定目标群，检查是否有该日期的任何JSON文件
+        json_pattern = f"*_{date_str}.json"
+        json_files = [f for f in os.listdir(DATA_DIR) if f.endswith(f"_{date_str}.json")]
+        if json_files:
+            log_info(f"找到 {len(json_files)} 个已切割的JSON文件，直接加载")
+            group_messages = {}
+            for json_file in json_files:
+                group_id = json_file.replace(f"_{date_str}.json", "")
+                json_path = os.path.join(DATA_DIR, json_file)
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        messages = json.load(f)
+                    group_messages[group_id] = messages
+                    log_info(f"加载群 {group_id}: {len(messages)} 条消息")
+                except Exception as e:
+                    log_warning(f"加载 {json_file} 失败: {str(e)}")
+            
+            if group_messages:
+                log_info(f"成功加载 {len(group_messages)} 个群的聊天记录")
+                return group_messages, date_str
+    
+    # 如果没有找到已切割的JSON，则从日志文件解析
+    log_info("未找到已切割的JSON文件，开始从日志文件解析")
     
     # 选择日志源
     log_source = None
@@ -1004,8 +1051,14 @@ async def execute_daily_summary(bot, target_groups=None, day_offset=0, start_hou
     log_info(f"开始执行日报生成，时间范围: {start_time} - {end_time}")
     log_info(f"目标群: {target_groups if target_groups else '所有群'}")
     
-    # 分割日志文件
-    group_messages, _ = await split_log_files(day_offset)
+    # 分割日志文件（如果只有一个目标群，只切割该群以提升性能）
+    if target_groups and len(target_groups) == 1:
+        target_group = target_groups[0]
+        log_info(f"只切割目标群 {target_group} 的日志")
+        group_messages, _ = await split_log_files(day_offset, target_group)
+    else:
+        # 切割所有群的日志
+        group_messages, _ = await split_log_files(day_offset)
     
     if not group_messages:
         log_warning(f"没有找到任何群的聊天记录，无法生成日报")

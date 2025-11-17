@@ -3,11 +3,43 @@ import json
 import re
 import asyncio
 from hoshino import Service, priv
-from .dailysum import handle_daily_report_cmd, start_scheduler, PLAYWRIGHT_AVAILABLE, init_dailysum_playwright, gemini_client
+from nonebot import get_bot
+from .dailysum import handle_daily_report_cmd, start_scheduler, PLAYWRIGHT_AVAILABLE, init_dailysum_playwright, gemini_client, split_log_files
 from .logger_helper import log_info, log_warning, log_error_msg
 from .weekly_report import generate_weekly_report
 
 sv = Service('dailysum', enable_on_default=False, help_='群聊日报功能')
+
+# 定时切割日志任务（每天凌晨3:50执行，为4点日报做准备）
+@sv.scheduled_job('cron', hour='3', minute='50')
+async def scheduled_log_split():
+    """
+    定时切割日志任务
+    每天凌晨3:50执行，将昨天的日志按群切割并保存为JSON
+    这样4点生成日报时可以直接读取，避免重复解析大日志文件
+    """
+    log_info("=" * 50)
+    log_info("开始执行定时日志切割任务")
+    log_info("=" * 50)
+    
+    try:
+        # 切割昨天的日志（day_offset=1）
+        # 注意：不传target_group，会切割所有群的日志
+        group_messages, date_str = await split_log_files(day_offset=1, target_group=None)
+        
+        if group_messages:
+            log_info(f"日志切割完成！共切割 {len(group_messages)} 个群的日志，日期: {date_str}")
+            for group_id, messages in group_messages.items():
+                log_info(f"  - 群 {group_id}: {len(messages)} 条消息")
+        else:
+            log_warning(f"未找到任何群的聊天记录")
+        
+        log_info("定时日志切割任务完成")
+        log_info("=" * 50)
+    except Exception as e:
+        log_error_msg(f"定时日志切割任务出错: {str(e)}")
+        import traceback
+        log_error_msg(traceback.format_exc())
 
 # 创建必要的目录
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
