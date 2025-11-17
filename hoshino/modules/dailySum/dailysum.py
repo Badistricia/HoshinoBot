@@ -48,8 +48,10 @@ from .test_html_report_2 import init_playwright, get_font_path, preprocess_conte
 try:
     from .gemini_client import GeminiClient
     if GEMINI_API_KEY:
-        gemini_client = GeminiClient(GEMINI_API_KEY)
-        log_info("Gemini客户端初始化成功")
+        # 使用配置中的模型名称，如果没有配置则使用默认值
+        gemini_model = GEMINI_MODEL if 'GEMINI_MODEL' in dir() else "gemini-1.5-flash"
+        gemini_client = GeminiClient(GEMINI_API_KEY, model=gemini_model)
+        log_info(f"Gemini客户端初始化成功，模型: {gemini_model}")
     else:
         gemini_client = None
         log_warning("Gemini API Key未设置，周报功能将不可用")

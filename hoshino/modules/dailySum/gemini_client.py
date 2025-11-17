@@ -8,23 +8,24 @@ import re
 from .logger_helper import log_info, log_debug, log_warning, log_error_msg
 
 class GeminiClient:
-    def __init__(self, api_key):
+    def __init__(self, api_key, model="gemini-2.5-flash"):
         self.api_key = api_key
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+        self.model = model
+        self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         self.headers = {
             "Content-Type": "application/json"
         }
-        log_info(f"GeminiClient 初始化完成，API Key: {'已设置' if api_key else '未设置'}")
+        log_info(f"GeminiClient 初始化完成，模型: {model}, API Key: {'已设置' if api_key else '未设置'}")
     
-    async def generate_html(self, prompt, max_retries=3, timeout=120.0):
+    async def generate_html(self, prompt, max_retries=5, timeout=180.0):
         """
         生成完整的HTML内容
         :param prompt: 提示词
-        :param max_retries: 最大重试次数
-        :param timeout: 超时时间
+        :param max_retries: 最大重试次数（默认5次，周报不着急）
+        :param timeout: 超时时间（默认180秒）
         :return: HTML内容字符串
         """
-        log_info(f"开始调用Gemini生成HTML报告")
+        log_info(f"开始调用Gemini生成HTML报告（周报模式：耐心等待）")
         log_debug(f"提示词: {prompt[:200]}...")
         
         # 记录请求数据大小
@@ -83,9 +84,9 @@ class GeminiClient:
                         return None
                 
                 elif response.status_code == 429:
-                    # 速率限制，等待更长时间后重试
-                    wait_time = min(5 * (retry_count + 1), 30)  # 最多等待30秒
-                    log_warning(f"Gemini API速率限制，等待{wait_time}秒后重试")
+                    # 速率限制，周报不着急，等待更长时间
+                    wait_time = 60 + (retry_count * 20)  # 60s, 80s, 100s, 120s, 140s
+                    log_warning(f"Gemini API速率限制(429)，周报不着急，等待{wait_time}秒后重试 ({retry_count + 1}/{max_retries})")
                     await asyncio.sleep(wait_time)
                     retry_count += 1
                 
@@ -111,22 +112,29 @@ class GeminiClient:
                     else:
                         return None
                 
+                elif response.status_code == 503:
+                    # 服务过载，周报不着急，直接等待60-90秒
+                    wait_time = 60 + (retry_count * 15)  # 60s, 75s, 90s, 105s, 120s
+                    log_warning(f"Gemini服务过载(503)，周报不着急，耐心等待{wait_time}秒后重试 ({retry_count + 1}/{max_retries})")
+                    await asyncio.sleep(wait_time)
+                    retry_count += 1
+                
                 else:
                     log_error_msg(f"Gemini API调用失败: {response.status_code} {response.text}")
                     retry_count += 1
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3)  # 增加到3秒
             
             except httpx.TimeoutException:
-                log_warning(f"Gemini API请求超时，尝试重试 ({retry_count + 1}/{max_retries})")
+                log_warning(f"Gemini API请求超时，周报不着急，等待60秒后重试 ({retry_count + 1}/{max_retries})")
                 retry_count += 1
-                await asyncio.sleep(2)
+                await asyncio.sleep(60)  # 超时也等60秒
             
             except Exception as e:
                 log_error_msg(f"Gemini API调用出错: {str(e)}")
                 import traceback
                 log_error_msg(traceback.format_exc())
                 retry_count += 1
-                await asyncio.sleep(2)
+                await asyncio.sleep(30)  # 其他错误等30秒
         
         log_error_msg(f"达到最大重试次数 ({max_retries})，Gemini生成失败")
         return None
