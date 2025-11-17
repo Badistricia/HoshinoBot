@@ -54,12 +54,13 @@ async def init_dailysum_playwright():
         log_warning("Playwright未安装，将使用文本方式发送日报")
 
 # 自定义HTML转图片函数
-async def html_to_image(title, content, date_str):
+async def html_to_image(title, content, date_str, group_id=None):
     """
     生成HTML报告并转换为图片
     :param title: 标题
     :param content: 内容
     :param date_str: 日期字符串
+    :param group_id: 群号，用于生成唯一的文件名
     :return: HTML文件路径和图片文件路径的元组
     """
     try:
@@ -119,8 +120,11 @@ async def html_to_image(title, content, date_str):
                 log_error_msg(f"手动替换HTML变量失败: {str(e)}")
                 return None, None
         
-        # 保存HTML文件
-        temp_html_path = os.path.join(DATA_DIR, f"report_{date_str}.html")
+        # 保存HTML文件 - 使用群号和时间戳生成唯一文件名
+        import time
+        timestamp = str(int(time.time() * 1000))  # 毫秒级时间戳
+        file_suffix = f"{group_id}_{timestamp}" if group_id else f"{date_str}_{timestamp}"
+        temp_html_path = os.path.join(DATA_DIR, f"report_{file_suffix}.html")
         with open(temp_html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
@@ -131,8 +135,8 @@ async def html_to_image(title, content, date_str):
             log_warning("初始化Playwright失败，无法生成图片")
             return temp_html_path, None
         
-        # HTML转换为图片
-        temp_img_path = os.path.join(DATA_DIR, f"report_{date_str}.png")
+        # HTML转换为图片 - 使用相同的唯一文件名
+        temp_img_path = os.path.join(DATA_DIR, f"report_{file_suffix}.png")
         if await html_to_screenshot(os.path.abspath(temp_html_path), temp_img_path):
             # 检查生成的图片文件是否合理
             try:
@@ -848,12 +852,13 @@ async def generate_summary(group_id, date_str):
 
 # 生成图片摘要
 @logged
-async def generate_image_summary(title, content, date_str):
+async def generate_image_summary(title, content, date_str, group_id=None):
     """
     将摘要转换为图片
     :param title: 标题
     :param content: 内容
     :param date_str: 日期字符串
+    :param group_id: 群号，用于生成唯一的临时文件
     :return: 图片数据（base64编码）或None
     """
     log_info(f"开始生成图片摘要，日期: {date_str}")
@@ -875,7 +880,7 @@ async def generate_image_summary(title, content, date_str):
             # 增加超时处理
             try:
                 html_path, image_path = await asyncio.wait_for(
-                    html_to_image(title, content, date_str), 
+                    html_to_image(title, content, date_str, group_id), 
                     timeout=60.0  # 60秒超时
                 )
             except asyncio.TimeoutError:
@@ -1034,7 +1039,7 @@ async def execute_daily_summary(bot, target_groups=None, day_offset=0, start_hou
                 # 使用传统HTML转图片功能
                 if PLAYWRIGHT_AVAILABLE:
                     log_info(f"使用传统HTML转图片功能生成日报...")
-                    image_data = await generate_image_summary(title, summary, date_str)
+                    image_data = await generate_image_summary(title, summary, date_str, group_id)
                     # 增加日志，确认图片数据是否正确
                     if image_data:
                         log_info(f"图片生成成功，大小: {len(image_data)/1024:.2f} KB")
@@ -1177,7 +1182,7 @@ async def manual_summary(bot, ev, day_offset=0, target_group=None):
         # 使用传统HTML转图片功能
         if PLAYWRIGHT_AVAILABLE:
             log_info(f"使用传统HTML转图片功能生成日报...")
-            image_data = await generate_image_summary(title, summary, date_str)
+            image_data = await generate_image_summary(title, summary, date_str, target_group)
             # 增加日志，确认图片数据是否正确
             if image_data:
                 log_info(f"图片生成成功，大小: {len(image_data)/1024:.2f} KB")
