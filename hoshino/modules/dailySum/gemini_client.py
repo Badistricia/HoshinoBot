@@ -10,7 +10,7 @@ from .logger_helper import log_info, log_debug, log_warning, log_error_msg
 class GeminiClient:
     def __init__(self, api_key):
         self.api_key = api_key
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
         self.headers = {
             "Content-Type": "application/json"
         }
