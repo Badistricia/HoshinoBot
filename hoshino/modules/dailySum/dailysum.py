@@ -44,6 +44,19 @@ from .logger_helper import log_debug, log_info, log_warning, log_error_msg, log_
 # 导入HTML图片日报功能所需函数
 from .test_html_report_2 import init_playwright, get_font_path, preprocess_content, html_to_screenshot
 
+# 导入Gemini客户端（用于周报）
+try:
+    from .gemini_client import GeminiClient
+    if GEMINI_API_KEY:
+        gemini_client = GeminiClient(GEMINI_API_KEY)
+        log_info("Gemini客户端初始化成功")
+    else:
+        gemini_client = None
+        log_warning("Gemini API Key未设置，周报功能将不可用")
+except Exception as e:
+    gemini_client = None
+    log_warning(f"Gemini客户端初始化失败: {str(e)}")
+
 # 初始化Playwright（异步启动）
 async def init_dailysum_playwright():
     if PLAYWRIGHT_AVAILABLE:
@@ -480,8 +493,17 @@ async def parse_syslog(log_path, start_time=None, end_time=None, target_group=No
                             if end_time and log_time > end_time:
                                 continue
                             
-                            # 群号过滤
-                            if target_group and group_id != target_group:
+                            # 群号过滤（确保都是字符串比较）
+                            group_id_str = str(group_id).strip()
+                            target_group_str = str(target_group).strip() if target_group else None
+                            
+                            # 调试：记录第一个匹配到的群号
+                            if matched_count == 1 and target_group:
+                                log_info(f"目标群号: '{target_group_str}' (类型: {type(target_group_str)})")
+                                log_info(f"解析出的群号: '{group_id_str}' (类型: {type(group_id_str)})")
+                                log_info(f"是否匹配: {group_id_str == target_group_str}")
+                            
+                            if target_group_str and group_id_str != target_group_str:
                                 continue
                             
                             # 解析发送者QQ号
@@ -490,11 +512,11 @@ async def parse_syslog(log_path, start_time=None, end_time=None, target_group=No
                             # 简化CQ码内容
                             simplified_content = simplify_cq_code(content)
                             
-                            # 将消息添加到对应群
-                            if group_id not in group_messages:
-                                group_messages[group_id] = []
+                            # 将消息添加到对应群（使用字符串格式的群号作为key）
+                            if group_id_str not in group_messages:
+                                group_messages[group_id_str] = []
                             
-                            group_messages[group_id].append({
+                            group_messages[group_id_str].append({
                                 'time': log_time.strftime('%Y-%m-%d %H:%M:%S'),
                                 'qq': sender_qq,
                                 'content': simplified_content
