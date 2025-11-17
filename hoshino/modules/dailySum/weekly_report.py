@@ -8,7 +8,8 @@ import asyncio
 import base64
 from datetime import datetime, timedelta
 from .logger_helper import log_info, log_debug, log_warning, log_error_msg, logged
-from .config import DATA_DIR, GEMINI_WEEKLY_PROMPT, PLAYWRIGHT_AVAILABLE
+from .config import DATA_DIR, GEMINI_WEEKLY_PROMPT
+from .dailysum import PLAYWRIGHT_AVAILABLE
 from .test_html_report_2 import init_playwright, html_to_screenshot
 
 # 生成周报HTML（使用Gemini）
