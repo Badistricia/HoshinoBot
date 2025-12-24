@@ -239,9 +239,14 @@ class VideoDownloader:
             if cookies_path and os.path.exists(cookies_path):
                 base_cmd.extend(['--cookies', cookies_path])
 
-            # 第一次尝试：带 User-Agent
-            # 注意：在Linux服务器上使用Windows UA可能会导致问题，但在大多数情况下有助于绕过简单的反爬
-            user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            # 第一次尝试：根据系统环境选择 User-Agent
+            if os.name == 'nt':
+                # Windows 环境
+                user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            else:
+                # Linux/其他 环境 (使用更通用的 Linux Chrome UA)
+                user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            
             cmd = base_cmd + ['--user-agent', user_agent]
             
             print(f"执行yt-dlp命令 (尝试1): {' '.join(cmd)}")
