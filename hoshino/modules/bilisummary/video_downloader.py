@@ -163,15 +163,23 @@ class VideoDownloader:
     
     async def download_video(self, video_id: str, output_dir: str, cookies_path: Optional[str] = None) -> Optional[str]:
         """下载视频（优先使用yt-dlp，其次BBDown）"""
-        # 优先尝试 yt-dlp
+        force_bbdown = os.getenv('BILI_FORCE_BBDOWN') == '1'
+        if force_bbdown:
+            print("已启用 BILI_FORCE_BBDOWN=1，将优先使用BBDown")
+        
+        if self.bbdown_path and force_bbdown:
+            result = await self.download_video_with_bbdown(video_id, output_dir, cookies_path)
+            if result:
+                return result
+            print("BBDown下载失败，尝试使用yt-dlp...")
+        
         if self.ytdlp_path:
             result = await self.download_video_with_ytdlp(video_id, output_dir, cookies_path)
             if result:
                 return result
             print("yt-dlp下载失败，尝试使用BBDown...")
-            
-        # 其次尝试 BBDown
-        if self.bbdown_path:
+        
+        if self.bbdown_path and not force_bbdown:
             return await self.download_video_with_bbdown(video_id, output_dir, cookies_path)
             
         return None
@@ -298,24 +306,41 @@ class VideoDownloader:
         if not self.bbdown_path:
             return None
         
+        bbdown_debug = os.getenv('BILI_BBDOWN_DEBUG') == '1'
+        if bbdown_debug:
+            print("已启用 BILI_BBDOWN_DEBUG=1，BBDown将输出调试信息")
+        
         try:
-            # BBDown命令参数
             cmd = [
                 self.bbdown_path,
                 f"https://www.bilibili.com/video/{video_id}",
                 '--work-dir', output_dir,
-                '--use-mp4-box-api',  # 使用mp4格式
-                '--encoding-priority', 'hevc,av1,avc',  # 编码优先级
-                '--dfn-priority', '16,32,64,80,112',  # 画质优先级（最低画质优先）
-                '--audio-only', 'false',
-                '--video-only', 'false',
-                '--debug', 'false',
-                '--skip-mux', 'false'
+                '--use-mp4box',
+                '--encoding-priority', 'hevc,av1,avc',
+                '--dfn-priority', '16,32,64,80,112',
             ]
             
-            # 如果有cookies文件，添加cookies参数
+            if bbdown_debug:
+                cmd.append('--debug')
+            
             if cookies_path and os.path.exists(cookies_path):
-                cmd.extend(['--cookie', cookies_path])
+                try:
+                    cookie_items = []
+                    with open(cookies_path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line or line.startswith('#'):
+                                continue
+                            parts = line.split('\t')
+                            if len(parts) >= 7:
+                                name = parts[5]
+                                value = parts[6]
+                                cookie_items.append(f"{name}={value}")
+                    if cookie_items:
+                        cookie_str = '; '.join(cookie_items)
+                        cmd.extend(['--cookie', cookie_str])
+                except Exception as e:
+                    print(f"读取Cookies文件失败，将不使用Cookies: {e}")
             
             print(f"执行BBDown命令: {' '.join(cmd)}")
             

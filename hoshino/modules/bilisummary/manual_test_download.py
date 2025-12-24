@@ -31,10 +31,16 @@ async def main():
     
     debug_flag = os.getenv('BILI_YTDLP_DEBUG')
     no_cookies_flag = os.getenv('BILI_YTDLP_NO_COOKIES')
+    force_bbdown_flag = os.getenv('BILI_FORCE_BBDOWN')
+    bbdown_debug_flag = os.getenv('BILI_BBDOWN_DEBUG')
     if debug_flag == '1':
         print("环境变量已启用: BILI_YTDLP_DEBUG=1 (yt-dlp将输出调试信息)")
     if no_cookies_flag == '1':
         print("环境变量已启用: BILI_YTDLP_NO_COOKIES=1 (下载时不会携带Cookies)")
+    if force_bbdown_flag == '1':
+        print("环境变量已启用: BILI_FORCE_BBDOWN=1 (将优先使用BBDown)")
+    if bbdown_debug_flag == '1':
+        print("环境变量已启用: BILI_BBDOWN_DEBUG=1 (BBDown将输出调试信息)")
     
     downloader = VideoDownloader()
     
