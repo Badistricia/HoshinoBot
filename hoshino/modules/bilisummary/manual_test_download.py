@@ -26,6 +26,7 @@ except Exception as e:
 async def main():
     print("=" * 50)
     print("🎬 视频下载功能测试工具 (yt-dlp版)")
+    print(f"🖥️  当前运行环境: {sys.platform} (os.name: {os.name})")
     print("=" * 50)
     
     downloader = VideoDownloader()

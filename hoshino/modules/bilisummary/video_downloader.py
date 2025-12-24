@@ -243,9 +243,11 @@ class VideoDownloader:
             if os.name == 'nt':
                 # Windows 环境
                 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                print(f"检测到 Windows 环境，使用 Windows User-Agent")
             else:
                 # Linux/其他 环境 (使用更通用的 Linux Chrome UA)
                 user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                print(f"检测到 Linux/非Windows 环境，使用 Linux User-Agent")
             
             cmd = base_cmd + ['--user-agent', user_agent]
             
