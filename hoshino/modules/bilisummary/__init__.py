@@ -106,10 +106,10 @@ async def auto_download_short_video(bot, ev: CQEvent, video_id: str, title: str,
     try:
         # 检查工具可用性
         tools = video_downloader.check_tools()
-        if not tools['bbdown'] or not tools['ffmpeg']:
+        if (not tools['bbdown'] and not tools['ytdlp']) or not tools['ffmpeg']:
             missing_tools = []
-            if not tools['bbdown']:
-                missing_tools.append('BBDown')
+            if not tools['bbdown'] and not tools['ytdlp']:
+                missing_tools.append('yt-dlp/BBDown')
             if not tools['ffmpeg']:
                 missing_tools.append('FFmpeg')
             
@@ -566,10 +566,10 @@ async def video_download_handler(bot, ev: CQEvent):
         
         # 检查工具可用性
         tools = video_downloader.check_tools()
-        if not tools['bbdown'] or not tools['ffmpeg']:
+        if (not tools['bbdown'] and not tools['ytdlp']) or not tools['ffmpeg']:
             missing_tools = []
-            if not tools['bbdown']:
-                missing_tools.append('BBDown')
+            if not tools['bbdown'] and not tools['ytdlp']:
+                missing_tools.append('yt-dlp/BBDown')
             if not tools['ffmpeg']:
                 missing_tools.append('FFmpeg')
             

@@ -15,6 +15,7 @@ class VideoDownloader:
     def __init__(self):
         self.temp_dir = None
         self.bbdown_path = None
+        self.ytdlp_path = None
         self.ffmpeg_path = None
     
     def find_bbdown(self) -> Optional[str]:
@@ -36,6 +37,28 @@ class VideoDownloader:
                 return path
         
         return None
+
+    def find_ytdlp(self) -> Optional[str]:
+        """查找yt-dlp可执行文件"""
+        # 优先检查系统PATH
+        if shutil.which('yt-dlp'):
+            return 'yt-dlp'
+        if shutil.which('yt-dlp.exe'):
+            return 'yt-dlp.exe'
+            
+        # 检查常见路径
+        possible_paths = [
+            'yt-dlp.exe',
+            'yt-dlp',
+            os.path.expanduser('~/yt-dlp/yt-dlp.exe'),
+            'C:/Program Files/yt-dlp/yt-dlp.exe',
+        ]
+        
+        for path in possible_paths:
+            if shutil.which(path):
+                return path
+                
+        return None
     
     def find_ffmpeg(self) -> Optional[str]:
         """查找FFmpeg可执行文件"""
@@ -44,22 +67,28 @@ class VideoDownloader:
     def check_tools(self) -> Dict[str, bool]:
         """检查必要工具是否可用"""
         self.bbdown_path = self.find_bbdown()
+        self.ytdlp_path = self.find_ytdlp()
         self.ffmpeg_path = self.find_ffmpeg()
         
         return {
             'bbdown': self.bbdown_path is not None,
+            'ytdlp': self.ytdlp_path is not None,
             'ffmpeg': self.ffmpeg_path is not None
         }
     
     def get_installation_guide(self) -> str:
         """获取工具安装指南"""
-        return """视频下载功能需要安装以下工具：
+        return """视频下载功能需要安装以下工具之一（推荐 yt-dlp）：
 
-1. BBDown (B站视频下载工具)
+1. yt-dlp (推荐，功能强大且更新及时)
+   安装方法：pip install yt-dlp
+   或者下载exe放到系统PATH中：https://github.com/yt-dlp/yt-dlp/releases
+
+2. BBDown (B站专用下载工具)
    下载地址：https://github.com/nilaoda/BBDown/releases
    安装方法：下载后解压到任意目录，并将目录添加到系统PATH环境变量
 
-2. FFmpeg (视频处理工具)
+3. FFmpeg (必须，视频处理工具)
    下载地址：https://ffmpeg.org/download.html
    安装方法：下载后解压到任意目录，并将bin目录添加到系统PATH环境变量
 
@@ -111,6 +140,64 @@ class VideoDownloader:
         return duration <= 300  # 5分钟 = 300秒
     
     async def download_video(self, video_id: str, output_dir: str, cookies_path: Optional[str] = None) -> Optional[str]:
+        """下载视频（优先使用yt-dlp，其次BBDown）"""
+        # 优先尝试 yt-dlp
+        if self.ytdlp_path:
+            result = await self.download_video_with_ytdlp(video_id, output_dir, cookies_path)
+            if result:
+                return result
+            print("yt-dlp下载失败，尝试使用BBDown...")
+            
+        # 其次尝试 BBDown
+        if self.bbdown_path:
+            return await self.download_video_with_bbdown(video_id, output_dir, cookies_path)
+            
+        return None
+
+    async def download_video_with_ytdlp(self, video_id: str, output_dir: str, cookies_path: Optional[str] = None) -> Optional[str]:
+        """使用yt-dlp下载视频"""
+        if not self.ytdlp_path:
+            return None
+            
+        try:
+            # yt-dlp命令参数
+            cmd = [
+                self.ytdlp_path,
+                f"https://www.bilibili.com/video/{video_id}",
+                '-o', f'{output_dir}/%(id)s.%(ext)s',
+                '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # 优先下载mp4
+                '--merge-output-format', 'mp4'
+            ]
+            
+            # 如果有cookies文件，添加cookies参数
+            if cookies_path and os.path.exists(cookies_path):
+                cmd.extend(['--cookies', cookies_path])
+            
+            print(f"执行yt-dlp命令: {' '.join(cmd)}")
+            
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=output_dir
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                # 查找下载的文件
+                for file in os.listdir(output_dir):
+                    if file.endswith(('.mp4', '.mkv', '.flv')):
+                        return os.path.join(output_dir, file)
+            else:
+                print(f"yt-dlp下载失败: {stderr.decode()}")
+                
+        except Exception as e:
+            print(f"yt-dlp下载异常: {e}")
+            
+        return None
+
+    async def download_video_with_bbdown(self, video_id: str, output_dir: str, cookies_path: Optional[str] = None) -> Optional[str]:
         """使用BBDown下载视频（最低画质）"""
         if not self.bbdown_path:
             return None
@@ -281,8 +368,8 @@ class VideoDownloader:
         """处理短视频：下载并压缩"""
         # 检查工具可用性
         tools = self.check_tools()
-        if not tools['bbdown']:
-            return None, "BBDown未安装或未找到"
+        if not tools['bbdown'] and not tools['ytdlp']:
+            return None, "未找到下载工具 (BBDown 或 yt-dlp)"
         if not tools['ffmpeg']:
             return None, "FFmpeg未安装或未找到"
         
