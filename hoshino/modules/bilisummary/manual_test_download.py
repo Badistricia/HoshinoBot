@@ -29,6 +29,13 @@ async def main():
     print(f"🖥️  当前运行环境: {sys.platform} (os.name: {os.name})")
     print("=" * 50)
     
+    debug_flag = os.getenv('BILI_YTDLP_DEBUG')
+    no_cookies_flag = os.getenv('BILI_YTDLP_NO_COOKIES')
+    if debug_flag == '1':
+        print("环境变量已启用: BILI_YTDLP_DEBUG=1 (yt-dlp将输出调试信息)")
+    if no_cookies_flag == '1':
+        print("环境变量已启用: BILI_YTDLP_NO_COOKIES=1 (下载时不会携带Cookies)")
+    
     downloader = VideoDownloader()
     
     print("\n[1/3] 正在检查必要工具...")

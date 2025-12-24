@@ -211,9 +211,16 @@ class VideoDownloader:
         """使用yt-dlp下载视频"""
         if not self.ytdlp_path:
             return None
+        
+        debug_mode = os.getenv('BILI_YTDLP_DEBUG') == '1'
+        no_cookies = os.getenv('BILI_YTDLP_NO_COOKIES') == '1'
+        if debug_mode:
+            print("已启用 BILI_YTDLP_DEBUG 调试模式")
+        if no_cookies:
+            print("已启用 BILI_YTDLP_NO_COOKIES，跳过 Cookies 参数")
             
         # 自动查找并转换 cookies
-        if not cookies_path or not os.path.exists(cookies_path):
+        if (not cookies_path or not os.path.exists(cookies_path)) and not no_cookies:
             # 尝试查找当前目录下的 bilibili_cookies.json
             current_dir = os.path.dirname(os.path.abspath(__file__))
             json_cookies = os.path.join(current_dir, 'bilibili_cookies.json')
@@ -235,8 +242,11 @@ class VideoDownloader:
                 '--merge-output-format', 'mp4',
             ]
             
+            if debug_mode:
+                base_cmd.extend(['-v', '--print-traffic'])
+            
             # 如果有cookies文件，添加cookies参数
-            if cookies_path and os.path.exists(cookies_path):
+            if cookies_path and os.path.exists(cookies_path) and not no_cookies:
                 base_cmd.extend(['--cookies', cookies_path])
 
             # 第一次尝试：根据系统环境选择 User-Agent
