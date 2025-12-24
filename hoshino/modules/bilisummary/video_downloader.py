@@ -491,6 +491,17 @@ class VideoDownloader:
             if duration and not self.is_short_video(duration):
                 return None, f"视频时长 {duration/60:.1f} 分钟，超过5分钟限制"
             
+            # 直接返回下载的文件（跳过压缩）
+            file_size_mb = os.path.getsize(downloaded_file) / (1024 * 1024)
+            print(f"跳过压缩，直接发送原文件: {file_size_mb:.2f}MB")
+            
+            # 简单的文件大小检查警告
+            if file_size_mb > 100:
+                print(f"警告：文件大小 {file_size_mb:.2f}MB 可能超过发送限制")
+                
+            return downloaded_file, f"视频下载完成，文件大小: {file_size_mb:.2f}MB"
+            
+            """
             # 压缩视频
             compressed_file = os.path.join(temp_dir, f"compressed_{video_id}.mp4")
             print(f"开始压缩视频，目标大小: {target_size_mb}MB")
@@ -505,6 +516,7 @@ class VideoDownloader:
                     return None, f"压缩后文件仍然过大: {file_size_mb:.2f}MB"
             else:
                 return None, "视频压缩失败"
+            """
         
         except Exception as e:
             print(f"处理视频失败: {e}")
