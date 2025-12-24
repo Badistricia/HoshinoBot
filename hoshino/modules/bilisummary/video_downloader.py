@@ -41,10 +41,13 @@ class VideoDownloader:
     def find_ytdlp(self) -> Optional[str]:
         """查找yt-dlp可执行文件"""
         # 优先检查系统PATH
-        if shutil.which('yt-dlp'):
-            return 'yt-dlp'
-        if shutil.which('yt-dlp.exe'):
-            return 'yt-dlp.exe'
+        path = shutil.which('yt-dlp')
+        if path:
+            return path
+            
+        path = shutil.which('yt-dlp.exe')
+        if path:
+            return path
             
         # 检查常见路径
         possible_paths = [
@@ -94,6 +97,31 @@ class VideoDownloader:
 
 安装完成后重启机器人即可使用视频下载功能。"""
     
+    async def _run_subprocess(self, cmd: list, cwd: str = None) -> Tuple[int, bytes, bytes]:
+        """运行子进程（兼容Windows异步问题）"""
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd
+            )
+            stdout, stderr = await process.communicate()
+            return process.returncode, stdout, stderr
+        except NotImplementedError:
+            # Fallback for Windows ProactorEventLoop issues
+            import subprocess
+            sync_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=cwd,
+                shell=True if os.name == 'nt' else False
+            )
+            loop = asyncio.get_running_loop()
+            stdout, stderr = await loop.run_in_executor(None, sync_process.communicate)
+            return sync_process.returncode, stdout, stderr
+
     async def get_video_duration(self, video_path: str) -> Optional[float]:
         """获取视频时长（秒）"""
         if not self.ffmpeg_path:
@@ -118,15 +146,9 @@ class VideoDownloader:
                     video_path
                 ]
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+            returncode, stdout, stderr = await self._run_subprocess(cmd)
             
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
+            if returncode == 0:
                 duration_str = stdout.decode().strip()
                 return float(duration_str)
             
@@ -177,25 +199,28 @@ class VideoDownloader:
             
             print(f"执行yt-dlp命令: {' '.join(cmd)}")
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=output_dir
-            )
+            try:
+                returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
+            except Exception as e:
+                # 兼容旧代码可能的异常处理，虽然_run_subprocess已经处理了NotImplementedError
+                # 这里主要捕获其他可能的异常
+                print(f"yt-dlp subprocess error: {e}")
+                import traceback
+                traceback.print_exc()
+                return None
             
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
+            if returncode == 0:
                 # 查找下载的文件
                 for file in os.listdir(output_dir):
                     if file.endswith(('.mp4', '.mkv', '.flv')):
                         return os.path.join(output_dir, file)
             else:
-                print(f"yt-dlp下载失败: {stderr.decode()}")
+                print(f"yt-dlp下载失败: {stderr.decode() if stderr else 'Unknown error'}")
                 
         except Exception as e:
             print(f"yt-dlp下载异常: {e}")
+            import traceback
+            traceback.print_exc()
             
         return None
 
@@ -225,16 +250,9 @@ class VideoDownloader:
             
             print(f"执行BBDown命令: {' '.join(cmd)}")
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=output_dir
-            )
+            returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
             
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
+            if returncode == 0:
                 # 查找下载的文件
                 for file in os.listdir(output_dir):
                     if file.endswith(('.mp4', '.mkv', '.flv')):
@@ -286,15 +304,9 @@ class VideoDownloader:
             
             print(f"执行FFmpeg压缩命令: {' '.join(cmd)}")
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+            returncode, stdout, stderr = await self._run_subprocess(cmd)
             
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
+            if returncode == 0:
                 # 检查压缩后的文件大小
                 if os.path.exists(output_path):
                     file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
@@ -344,14 +356,8 @@ class VideoDownloader:
                 output_path
             ]
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            return process.returncode == 0
+            returncode, stdout, stderr = await self._run_subprocess(cmd)
+            return returncode == 0
             
         except Exception as e:
             print(f"激进压缩失败: {e}")
