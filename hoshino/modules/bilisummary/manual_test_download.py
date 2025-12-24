@@ -2,23 +2,26 @@ import asyncio
 import os
 import sys
 import shutil
+import importlib.util
 
-# 添加项目根目录到 sys.path
+# 获取当前脚本所在目录
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, '../../../'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 
+# 动态加载 video_downloader.py，避免触发包的 __init__.py 导致的 HoshinoBot 初始化检查
 try:
-    from hoshino.modules.bilisummary.video_downloader import VideoDownloader
-except ImportError:
-    # 尝试直接导入（如果在模块目录下运行）
-    try:
-        sys.path.append(current_dir)
-        from video_downloader import VideoDownloader
-    except ImportError:
-        print("❌ 无法导入 VideoDownloader 模块，请确保脚本在正确的位置运行。")
-        sys.exit(1)
+    module_path = os.path.join(current_dir, "video_downloader.py")
+    spec = importlib.util.spec_from_file_location("video_downloader_standalone", module_path)
+    if spec and spec.loader:
+        video_downloader = importlib.util.module_from_spec(spec)
+        sys.modules["video_downloader_standalone"] = video_downloader
+        spec.loader.exec_module(video_downloader)
+        VideoDownloader = video_downloader.VideoDownloader
+    else:
+        raise ImportError("无法加载模块")
+except Exception as e:
+    print(f"❌ 无法导入 VideoDownloader 模块: {e}")
+    print("请确保 video_downloader.py 文件在当前目录下。")
+    sys.exit(1)
 
 async def main():
     print("=" * 50)
