@@ -314,9 +314,6 @@ class VideoDownloader:
                 self.bbdown_path,
                 f"https://www.bilibili.com/video/{video_id}",
                 '--work-dir', output_dir,
-                '--use-mp4box',
-                '--encoding-priority', 'hevc,av1,avc',
-                '--dfn-priority', '16,32,64',
             ]
             
             if bbdown_debug:
