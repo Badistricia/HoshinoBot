@@ -166,7 +166,9 @@ class VideoDownloader:
                 f"https://www.bilibili.com/video/{video_id}",
                 '-o', f'{output_dir}/%(id)s.%(ext)s',
                 '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # 优先下载mp4
-                '--merge-output-format', 'mp4'
+                '--merge-output-format', 'mp4',
+                # 添加 User-Agent 以防止 B站 412 错误
+                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             ]
             
             # 如果有cookies文件，添加cookies参数
