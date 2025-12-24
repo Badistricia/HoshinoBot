@@ -314,6 +314,7 @@ class VideoDownloader:
                 self.bbdown_path,
                 f"https://www.bilibili.com/video/{video_id}",
                 '--work-dir', output_dir,
+                '--dfn-priority', "720P 高清,480P 标清"
             ]
             
             if bbdown_debug:

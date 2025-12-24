@@ -116,8 +116,6 @@ async def auto_download_short_video(bot, ev: CQEvent, video_id: str, title: str,
             await bot.send(ev, f'💡 检测到短视频（{duration_str}），但缺少下载工具：{", ".join(missing_tools)}\n发送"视频下载帮助"查看安装指南')
             return
         
-        # 发送处理中提示
-        await bot.send(ev, f'🎬 检测到短视频（{duration_str}），正在自动下载压缩中...')
         
         # 查找cookies文件路径
         cookies_path = None
@@ -151,9 +149,6 @@ async def auto_download_short_video(bot, ev: CQEvent, video_id: str, title: str,
                 # 构建CQ码发送视频
                 from hoshino.typing import MessageSegment
                 video_msg = MessageSegment.video(f"file:///{video_file}")
-                
-                await bot.send(ev, f'✅ 短视频下载完成！\n📺 {title}\n📁 文件大小: {file_size_mb:.2f}MB')
-                await bot.send(ev, video_msg)
                 
                 # 清理临时文件
                 try:
