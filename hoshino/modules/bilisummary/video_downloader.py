@@ -241,12 +241,11 @@ class VideoDownloader:
                     print(f"已自动转换并加载 Cookies: {cookies_path}")
             
         try:
-            # 基础命令参数
             base_cmd = [
                 self.ytdlp_path,
                 f"https://www.bilibili.com/video/{video_id}",
                 '-o', f'{output_dir}/%(id)s.%(ext)s',
-                '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                '-f', 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best[height<=720]',
                 '--merge-output-format', 'mp4',
             ]
             
@@ -317,7 +316,7 @@ class VideoDownloader:
                 '--work-dir', output_dir,
                 '--use-mp4box',
                 '--encoding-priority', 'hevc,av1,avc',
-                '--dfn-priority', '16,32,64,80,112',
+                '--dfn-priority', '16,32,64',
             ]
             
             if bbdown_debug:
