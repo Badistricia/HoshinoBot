@@ -475,7 +475,10 @@ class VideoDownloader:
             return None, "FFmpeg未安装或未找到"
         
         # 创建临时目录
-        temp_dir = tempfile.mkdtemp(prefix='bilibili_video_')
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        temp_base_dir = os.path.join(current_dir, 'temp_videos')
+        os.makedirs(temp_base_dir, exist_ok=True)
+        temp_dir = tempfile.mkdtemp(prefix='bilibili_video_', dir=temp_base_dir)
         
         try:
             # 下载视频
