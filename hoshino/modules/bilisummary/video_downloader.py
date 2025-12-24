@@ -240,6 +240,7 @@ class VideoDownloader:
                 base_cmd.extend(['--cookies', cookies_path])
 
             # 第一次尝试：带 User-Agent
+            # 注意：在Linux服务器上使用Windows UA可能会导致问题，但在大多数情况下有助于绕过简单的反爬
             user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             cmd = base_cmd + ['--user-agent', user_agent]
             
@@ -251,22 +252,14 @@ class VideoDownloader:
                 print(f"yt-dlp subprocess error: {e}")
                 return None
             
-            # 如果失败且是 412 错误，尝试不带 User-Agent 重试
-            if returncode != 0 and (stderr and b'412' in stderr):
-                print("检测到 412 错误，尝试移除 User-Agent 重试...")
-                cmd = base_cmd  # 使用不带 UA 的基础命令
-                print(f"执行yt-dlp命令 (尝试2): {' '.join(cmd)}")
-                returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
-            
-            if returncode == 0:
-                # 查找下载的文件
-                for file in os.listdir(output_dir):
-                    if file.endswith(('.mp4', '.mkv', '.flv')):
-                        return os.path.join(output_dir, file)
-            else:
-                print(f"yt-dlp下载失败: {stderr.decode() if stderr else 'Unknown error'}")
-                
-        except Exception as e:
+            # 如果失败且是 412 错误，尝试不带 User-Agent 重试 (让yt-dlp使用默认UA)
+            if returncode != 0:
+                error_msg = stderr.decode() if stderr else ""
+                if '412' in error_msg or 'HTTP Error 412' in error_msg:
+                    print("检测到 412 错误，尝试移除自定义 User-Agent 重试...")
+                    cmd = base_cmd  # 使用不带 UA 的基础命令 (使用yt-dlp默认UA)
+                    print(f"执行yt-dlp命令 (尝试2): {' '.join(cmd)}")
+                    returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
             
             if returncode == 0:
                 # 查找下载的文件
