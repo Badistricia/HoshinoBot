@@ -193,7 +193,7 @@ class VideoDownloader:
                     # 默认域名为 .bilibili.com
                     domain = ".bilibili.com"
                     path = "/"
-                    secure = "FALSE"
+                    secure = "TRUE"
                     # 过期时间设置为一年后
                     expires = int(asyncio.get_event_loop().time() + 365 * 24 * 3600) if hasattr(asyncio, 'get_event_loop') else 0
                     if expires == 0:
@@ -226,32 +226,47 @@ class VideoDownloader:
                     print(f"已自动转换并加载 Cookies: {cookies_path}")
             
         try:
-            # yt-dlp命令参数
-            cmd = [
+            # 基础命令参数
+            base_cmd = [
                 self.ytdlp_path,
                 f"https://www.bilibili.com/video/{video_id}",
                 '-o', f'{output_dir}/%(id)s.%(ext)s',
-                '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # 优先下载mp4
+                '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 '--merge-output-format', 'mp4',
-                # 添加 User-Agent 以防止 B站 412 错误
-                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             ]
             
             # 如果有cookies文件，添加cookies参数
             if cookies_path and os.path.exists(cookies_path):
-                cmd.extend(['--cookies', cookies_path])
+                base_cmd.extend(['--cookies', cookies_path])
+
+            # 第一次尝试：带 User-Agent
+            user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            cmd = base_cmd + ['--user-agent', user_agent]
             
-            print(f"执行yt-dlp命令: {' '.join(cmd)}")
+            print(f"执行yt-dlp命令 (尝试1): {' '.join(cmd)}")
             
             try:
                 returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
             except Exception as e:
-                # 兼容旧代码可能的异常处理，虽然_run_subprocess已经处理了NotImplementedError
-                # 这里主要捕获其他可能的异常
                 print(f"yt-dlp subprocess error: {e}")
-                import traceback
-                traceback.print_exc()
                 return None
+            
+            # 如果失败且是 412 错误，尝试不带 User-Agent 重试
+            if returncode != 0 and (stderr and b'412' in stderr):
+                print("检测到 412 错误，尝试移除 User-Agent 重试...")
+                cmd = base_cmd  # 使用不带 UA 的基础命令
+                print(f"执行yt-dlp命令 (尝试2): {' '.join(cmd)}")
+                returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
+            
+            if returncode == 0:
+                # 查找下载的文件
+                for file in os.listdir(output_dir):
+                    if file.endswith(('.mp4', '.mkv', '.flv')):
+                        return os.path.join(output_dir, file)
+            else:
+                print(f"yt-dlp下载失败: {stderr.decode() if stderr else 'Unknown error'}")
+                
+        except Exception as e:
             
             if returncode == 0:
                 # 查找下载的文件
