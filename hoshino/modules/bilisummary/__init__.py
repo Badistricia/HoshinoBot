@@ -150,6 +150,9 @@ async def auto_download_short_video(bot, ev: CQEvent, video_id: str, title: str,
                 from hoshino.typing import MessageSegment
                 video_msg = MessageSegment.video(f"file:///{video_file}")
                 
+                # 发送视频消息
+                await bot.send(ev, video_msg)
+                
                 # 清理临时文件
                 try:
                     temp_dir = os.path.dirname(video_file)
@@ -183,7 +186,7 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
     is_miniprogram = False
     
     # 先检查普通B站链接
-    if BILIBILI_URL_PATTERN.search(plain_msg):
+    if BILIBILI_URL_PATTERN.search(plain_msg) or 'b23.tv' in plain_msg:
         video_id = await extract_video_id_async(plain_msg)
     
     # 如果没有找到普通链接，检查小程序
@@ -294,7 +297,7 @@ async def bilibili_summary_reply(bot, ev: CQEvent):
         video_id = None
         
         # 先检查普通B站链接
-        if BILIBILI_URL_PATTERN.search(reply_plain_content):
+        if BILIBILI_URL_PATTERN.search(reply_plain_content) or 'b23.tv' in reply_plain_content:
             video_id = await extract_video_id_async(reply_plain_content)
         
         # 如果没有找到普通链接，检查小程序
