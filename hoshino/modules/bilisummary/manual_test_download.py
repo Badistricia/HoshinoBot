@@ -40,9 +40,19 @@ async def main():
     # 尝试手动查找 yt-dlp 如果自动查找失败
     if not tools['ytdlp']:
         print("  Checking common pip install locations...")
-        python_scripts = os.path.join(os.path.dirname(sys.executable), 'Scripts')
-        possible_ytdlp = os.path.join(python_scripts, 'yt-dlp.exe')
-        if os.path.exists(possible_ytdlp):
+        # Windows
+        if sys.platform == 'win32':
+            python_scripts = os.path.join(os.path.dirname(sys.executable), 'Scripts')
+            possible_ytdlp = os.path.join(python_scripts, 'yt-dlp.exe')
+        # Linux / Ubuntu
+        else:
+            python_bin = os.path.dirname(sys.executable)
+            possible_ytdlp = os.path.join(python_bin, 'yt-dlp')
+            if not os.path.exists(possible_ytdlp):
+                 # 尝试在 PATH 中查找
+                 possible_ytdlp = shutil.which('yt-dlp')
+        
+        if possible_ytdlp and os.path.exists(possible_ytdlp):
             print(f"  ! Found yt-dlp at: {possible_ytdlp}")
             downloader.ytdlp_path = possible_ytdlp
             tools['ytdlp'] = True
