@@ -6,10 +6,11 @@ from . import config
 
 logger = logging.getLogger("hoshino.chatsentinel")
 
-class GeminiClient:
-    def __init__(self, api_key, model_name):
+class APIClient:
+    def __init__(self, api_key, model_name, base_url=None):
         self.api_key = api_key
         self.model_name = model_name
+        self.base_url = base_url
         self.client = self._create_client()
 
     def _create_client(self):
@@ -17,24 +18,14 @@ class GeminiClient:
             logger.error(f"API Key for {self.model_name} is missing.")
             return None
 
-        # Gemini OpenAI Compatible Endpoint
-        base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+        # Default to Gemini if not specified (backward compatibility)
+        # But we prefer explicit base_url
+        base_url = self.base_url if self.base_url else "https://generativelanguage.googleapis.com/v1beta/openai/"
         
         http_client = None
         if config.PROXY_URL:
             logger.info(f"Using Proxy: {config.PROXY_URL}")
-            # httpx >= 0.23.0 uses 'proxy' or 'proxies' depending on version?
-            # Actually AsyncClient uses 'proxy' (singular) for a single proxy or 'proxies' (mounts).
-            # But recent httpx versions deprecated 'proxies' in favor of 'proxy' or 'mounts'.
-            # However, 'proxies' param was removed in newer versions or changed behavior.
-            # Let's try passing it as 'proxy' if it's a simple string, or checking version.
-            # For simplicity and compatibility, we can just set mount directly or use 'proxy' param if simple.
-            # But AsyncOpenAI expects us to pass an AsyncClient.
-            
-            # Let's use 'proxy' parameter which is common in newer httpx for all-traffic proxy
-            # Or 'proxies' (dict) was supported in older versions.
-            # The error says "unexpected keyword argument 'proxies'", so it must be a version where it's removed or renamed.
-            # In httpx 0.24+, it is 'proxy' or 'mounts'.
+            # Use 'proxy' parameter which is common in newer httpx for all-traffic proxy
             http_client = httpx.AsyncClient(proxy=config.PROXY_URL)
         
         return AsyncOpenAI(
@@ -49,18 +40,22 @@ class GeminiClient:
             return ""
 
         try:
-            logger.info(f"Sending request to Gemini ({self.model_name})...")
+            # logger.info(f"Sending request to API ({self.model_name})...")
             response = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
-                timeout=15.0
+                timeout=15.0,
+                temperature=1.3 # High temperature for creative/varied judging? Or low for stability?
+                # Judge needs to be consistent. 1.3 is high (from aichat default). 
+                # DeepSeek V3 recommends 1.3? Let's use default or 0.7 for Judge.
+                # But aichat config uses 1.3. Let's stick to default 1.0 or explicit.
             )
             
             content = response.choices[0].message.content
             if content:
-                logger.info(f"Gemini Response: {content[:50]}...")
+                # logger.info(f"API Response: {content[:50]}...")
                 return content
             return ""
         except Exception as e:
-            logger.error(f"Gemini API Error ({self.model_name}): {e}")
+            logger.error(f"API Error ({self.model_name}): {e}")
             return ""

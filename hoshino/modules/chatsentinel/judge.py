@@ -1,4 +1,4 @@
-from .client import GeminiClient
+from .client import APIClient
 from . import config
 import logging
 
@@ -6,7 +6,11 @@ logger = logging.getLogger("hoshino.chatsentinel.judge")
 
 class TheJudge:
     def __init__(self):
-        self.client = GeminiClient(config.JUDGE_API_KEY, config.JUDGE_MODEL_NAME)
+        self.client = APIClient(
+            api_key=config.JUDGE_API_KEY, 
+            model_name=config.JUDGE_MODEL_NAME,
+            base_url=config.JUDGE_BASE_URL
+        )
         
     async def check(self, messages_str: str) -> bool:
         logger.info(f"Judging messages:\n{messages_str}")

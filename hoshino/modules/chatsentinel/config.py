@@ -1,16 +1,16 @@
 import os
 
 # API Configuration
-# 用户指定的 Key
-JUDGE_API_KEY = ""
+# Use DeepSeek API Key
+JUDGE_API_KEY = "sk-94a61ab92c414de58af7e7cbf9d73cd7"
+JUDGE_BASE_URL = "https://api.deepseek.com"
 
 # Responder 现在委托给 aichat 模块，所以这里的 RESPONDER_API_KEY 不再使用
-# 但为了兼容性保留定义，或者用于备用
 RESPONDER_API_KEY = JUDGE_API_KEY
 
 # Models
 # Judge Model (判官): 用于低成本快速判断
-JUDGE_MODEL_NAME = "gemini-2.5-flash"
+JUDGE_MODEL_NAME = "deepseek-chat"
 
 
 # System Constants
