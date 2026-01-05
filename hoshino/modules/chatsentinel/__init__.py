@@ -88,6 +88,9 @@ async def execute_logic(bot, gid, inst: GroupInstance):
     # Generate Reply
     # Use more context for generation, but maybe not 500 lines? 50 is fine for reply generation.
     # Responder usually only needs recent context.
+    # But we must ensure the 'text' (latest msg) is included if it hasn't been added to memory yet?
+    # Actually memory.add is called before this.
+    
     full_context = inst.memory.get_full_context_str(limit=50)
         try:
             # Pass gid to responder to use aichat's config

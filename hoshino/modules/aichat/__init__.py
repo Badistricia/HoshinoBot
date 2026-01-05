@@ -91,22 +91,21 @@ async def get_chat_response(group_id, text, config):
         
         if recent_logs:
             # Construct a context summary message
-            # We want this to be part of the prompt but distinct from the "direct conversation history".
-            # The structure of 'messages' is:
-            # 1. System Prompt (Persona)
-            # 2. History (User/Assistant pairs) - Managed by conversation_manager
-            # 3. New User Input
-            
-            # Strategy:
-            # We inject the group context as a "System Note" or "Background Info" 
-            # inserted *before* the conversation history but *after* the main persona.
-            # This ensures the bot knows the background but prioritizes the direct conversation flow.
+            # We use 'system' role to enforce context, ensuring it's treated as background info.
+            # We explicitly tell the model that this is BACKGROUND CONTEXT and it should answer the USER'S question based on it.
             
             context_msg = {
-                "role": "user", # Using 'user' role to simulate someone providing context, or 'system' if supported well.
-                # Many models treat multiple 'system' messages as append-only.
-                # Let's use a clear delimiter.
-                "content": f"[System Note: 以下是本群最近的公共聊天记录，作为背景信息供参考。请结合这些上下文回答我的问题。]\n{recent_logs}\n[End of System Note]"
+                "role": "system", 
+                "content": f"""[重要背景信息]
+以下是该群最近的公共聊天记录（时间顺序：旧->新）。
+请务必阅读这些记录，以便理解用户提问的背景（例如"刚才发生了什么"）。
+如果用户询问刚才的话题，请根据这些记录进行总结或回答。
+注意：不要复读聊天记录，而是作为你知识的一部分。
+
+--- 群聊上下文开始 ---
+{recent_logs}
+--- 群聊上下文结束 ---
+"""
             }
             
             # Find insertion point: After the first message (usually Persona)
@@ -116,6 +115,8 @@ async def get_chat_response(group_id, text, config):
                 messages.insert(1, context_msg)
             else:
                 messages.insert(0, context_msg)
+            
+            logger.info(f"[AiChat] Injected {len(recent_logs.splitlines())} lines of context from ChatSentinel.")
                 
     except ImportError:
         pass
