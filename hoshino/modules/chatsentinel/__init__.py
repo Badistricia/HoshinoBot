@@ -97,7 +97,7 @@ async def execute_logic(bot, gid, inst: GroupInstance):
             reply = await responder.generate(gid, full_context)
             if reply:
                 # Add Bot's reply to memory so it knows what it said
-                inst.memory.add("ChatSentinel", reply)
+                inst.memory.add("ChatSentinel", str(bot.config.self_id) if hasattr(bot.config, 'self_id') else 'Bot', reply)
                 await bot.send_group_msg(group_id=gid, message=reply)
                 
                 # Cooldown

@@ -6,7 +6,7 @@ class MemoryStore:
     def __init__(self, maxlen=500):
         self.history = deque(maxlen=maxlen)
 
-    def add(self, sender: str, content: str):
+    def add(self, sender: str, user_id: str, content: str):
         # Filter CQ codes and extra spaces
         # Remove [CQ:image,...], [CQ:face,...], etc.
         # Keep text content only.
@@ -24,6 +24,7 @@ class MemoryStore:
         self.history.append({
             "timestamp": time.time(),
             "sender": sender,
+            "user_id": user_id,
             "content": clean_content
         })
 
@@ -40,8 +41,10 @@ class MemoryStore:
         
         lines = []
         for msg in msgs:
-            # Format: UserA: Message content
-            lines.append(f"{msg['sender']}: {msg['content']}")
+            # Format: UserA(123456): Message content
+            # Add user_id to help identify the owner
+            uid = msg.get('user_id', '0')
+            lines.append(f"{msg['sender']}({uid}): {msg['content']}")
         return "\n".join(lines)
 
     def get_recent_messages(self, count=20):
