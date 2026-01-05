@@ -2,7 +2,7 @@ import os
 
 # API Configuration
 # 用户指定的 Key
-JUDGE_API_KEY = "AIzaSyDF40nR89ftJTEJb98C7842gghR4kq6XHo"
+JUDGE_API_KEY = ""
 
 # Responder 现在委托给 aichat 模块，所以这里的 RESPONDER_API_KEY 不再使用
 # 但为了兼容性保留定义，或者用于备用
