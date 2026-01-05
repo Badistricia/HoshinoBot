@@ -48,7 +48,7 @@ async def handle_msg(bot, ev: CQEvent):
     inst = get_instance(gid)
     
     # 1. Record to memory (always, even if disabled, to maintain context for when enabled)
-    inst.memory.add(sender, text)
+    inst.memory.add(sender, str(ev.user_id), text)
     
     # Check if enabled
     if not inst.enabled:
