@@ -81,6 +81,46 @@ async def get_chat_response(group_id, text, config):
     record = config.get("record", True)
     messages = conversation_manager.get_messages(group_id, record)
 
+    # --- Feature: Shared Memory with ChatSentinel ---
+    # Try to fetch recent group chat context from ChatSentinel if available
+    try:
+        from hoshino.modules.chatsentinel.manager import get_instance
+        inst = get_instance(int(group_id))
+        # Get recent context from ChatSentinel (e.g. last 20 messages)
+        recent_logs = inst.memory.get_full_context_str(limit=20)
+        
+        if recent_logs:
+            # Construct a context summary message
+            # We want this to be part of the prompt but distinct from the "direct conversation history".
+            # The structure of 'messages' is:
+            # 1. System Prompt (Persona)
+            # 2. History (User/Assistant pairs) - Managed by conversation_manager
+            # 3. New User Input
+            
+            # Strategy:
+            # We inject the group context as a "System Note" or "Background Info" 
+            # inserted *before* the conversation history but *after* the main persona.
+            # This ensures the bot knows the background but prioritizes the direct conversation flow.
+            
+            context_msg = {
+                "role": "user", # Using 'user' role to simulate someone providing context, or 'system' if supported well.
+                # Many models treat multiple 'system' messages as append-only.
+                # Let's use a clear delimiter.
+                "content": f"[System Note: 以下是本群最近的公共聊天记录，作为背景信息供参考。请结合这些上下文回答我的问题。]\n{recent_logs}\n[End of System Note]"
+            }
+            
+            # Find insertion point: After the first message (usually Persona)
+            if len(messages) > 0:
+                messages.insert(1, context_msg)
+            else:
+                messages.insert(0, context_msg)
+                
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"Failed to fetch ChatSentinel context: {e}")
+    # ------------------------------------------------
+
     # 将用户的问题临时添加到消息中
     messages.append({"role": "user", "content": text})
 

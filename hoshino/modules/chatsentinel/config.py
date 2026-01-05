@@ -17,7 +17,7 @@ JUDGE_MODEL_NAME = "gemini-2.5-flash"
 BATCH_SIZE = 4
 BATCH_TIMEOUT = 15.0 # Seconds
 DAILY_LIMIT = 1450
-HISTORY_LEN = 50
+HISTORY_LEN = 500
 
 # Proxy Configuration (Optional)
 # Example: "http://127.0.0.1:7890"

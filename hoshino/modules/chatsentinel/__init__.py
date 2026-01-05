@@ -6,24 +6,13 @@ from .guard import TrafficGuard
 from .judge import TheJudge
 from .responder import Responder
 from . import config
+from .manager import get_instance
 
 sv = Service('chatsentinel', enable_on_default=False, visible=True, help_='ChatSentinel: 潜水系群聊AI\n指令：开启/关闭潜水姬')
-
-class GroupInstance:
-    def __init__(self):
-        self.memory = MemoryStore(maxlen=config.HISTORY_LEN)
-        self.guard = TrafficGuard()
-        self.enabled = False # Default disabled per request
 
 # Shared components
 judge = TheJudge()
 responder = Responder()
-instances = {}
-
-def get_instance(group_id) -> GroupInstance:
-    if group_id not in instances:
-        instances[group_id] = GroupInstance()
-    return instances[group_id]
 
 @sv.on_fullmatch(('开启潜水姬', '启用潜水姬', '开启潜水AI', 'enable_chatsentinel'))
 async def enable_service(bot, ev: CQEvent):
@@ -73,6 +62,8 @@ async def handle_msg(bot, ev: CQEvent):
     if inst.guard.should_trigger():
         await execute_logic(bot, gid, inst)
 
+from .manager import get_instance, GroupInstance, instances
+
 async def execute_logic(bot, gid, inst: GroupInstance):
     # Double check enabled state (in case disabled during buffer wait)
     if not inst.enabled:
@@ -81,7 +72,7 @@ async def execute_logic(bot, gid, inst: GroupInstance):
 
     # Retrieve batch
     batch_msgs = inst.guard.pop_buffer()
-    sv.logger.info(f"[ChatSentinel] Processing batch for Group {gid}...")
+    # sv.logger.info(f"[ChatSentinel] Processing batch for Group {gid}...")
     
     # Judge
     try:
@@ -93,7 +84,9 @@ async def execute_logic(bot, gid, inst: GroupInstance):
     if decision:
         # sv.logger.info(f"[ChatSentinel] Judge said YES! Generating reply...")
         # Generate Reply
-        full_context = inst.memory.get_full_context_str()
+        # Use more context for generation, but maybe not 500 lines? 50 is fine for reply generation.
+        # Responder usually only needs recent context.
+        full_context = inst.memory.get_full_context_str(limit=50)
         try:
             # Pass gid to responder to use aichat's config
             reply = await responder.generate(gid, full_context)
@@ -103,7 +96,8 @@ async def execute_logic(bot, gid, inst: GroupInstance):
                 await bot.send_group_msg(group_id=gid, message=reply)
                 
                 # Cooldown
-                inst.guard.set_cooldown(120)
+                # Reduced to 60s per user request
+                inst.guard.set_cooldown(20)
         except Exception as e:
             sv.logger.error(f"Responder Error: {e}")
 
@@ -115,5 +109,11 @@ async def check_timeouts():
         return 
 
     for gid, inst in instances.items():
+        # Check if enabled inside should_trigger or here?
+        # should_trigger checks cooldown and buffer.
+        # But if not enabled, we shouldn't trigger.
+        if not inst.enabled:
+            continue
+            
         if inst.guard.should_trigger():
             await execute_logic(bot, gid, inst)
