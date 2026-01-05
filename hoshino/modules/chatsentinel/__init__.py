@@ -81,17 +81,15 @@ async def execute_logic(bot, gid, inst: GroupInstance):
         sv.logger.error(f"Judge Error: {e}")
         decision = False
     
-    if not decision:
-        return
-
-    # sv.logger.info(f"[ChatSentinel] Judge said YES! Generating reply...")
-    # Generate Reply
-    # Use more context for generation, but maybe not 500 lines? 50 is fine for reply generation.
-    # Responder usually only needs recent context.
-    # But we must ensure the 'text' (latest msg) is included if it hasn't been added to memory yet?
-    # Actually memory.add is called before this.
-    
-    full_context = inst.memory.get_full_context_str(limit=50)
+    if decision:
+        # sv.logger.info(f"[ChatSentinel] Judge said YES! Generating reply...")
+        # Generate Reply
+        # Use more context for generation, but maybe not 500 lines? 50 is fine for reply generation.
+        # Responder usually only needs recent context.
+        # But we must ensure the 'text' (latest msg) is included if it hasn't been added to memory yet?
+        # Actually memory.add is called before this.
+        
+        full_context = inst.memory.get_full_context_str(limit=50)
         try:
             # Pass gid to responder to use aichat's config
             reply = await responder.generate(gid, full_context)
@@ -102,7 +100,7 @@ async def execute_logic(bot, gid, inst: GroupInstance):
                 
                 # Cooldown
                 # Reduced to 60s per user request
-                inst.guard.set_cooldown(20)
+                inst.guard.set_cooldown(60)
         except Exception as e:
             sv.logger.error(f"Responder Error: {e}")
 
