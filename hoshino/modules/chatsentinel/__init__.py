@@ -91,7 +91,7 @@ async def execute_logic(bot, gid, inst: GroupInstance):
         decision = False
     
     if decision:
-        sv.logger.info(f"[ChatSentinel] Judge said YES! Generating reply...")
+        # sv.logger.info(f"[ChatSentinel] Judge said YES! Generating reply...")
         # Generate Reply
         full_context = inst.memory.get_full_context_str()
         try:
