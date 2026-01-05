@@ -110,7 +110,9 @@ async def get_chat_response(group_id, text, config):
             }
             
             # Find insertion point: After the first message (usually Persona)
-            if len(messages) > 0:
+            # Ensure we insert it early enough so it's "background", but after the persona definition.
+            # If the first message is system, insert after it.
+            if len(messages) > 0 and messages[0]['role'] == 'system':
                 messages.insert(1, context_msg)
             else:
                 messages.insert(0, context_msg)
