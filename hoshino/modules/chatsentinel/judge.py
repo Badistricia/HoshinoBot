@@ -13,18 +13,19 @@ class TheJudge:
         )
         
     async def check(self, messages_str: str) -> bool:
-        logger.info(f"Judging messages:\n{messages_str}")
+        logger.info(f"Judging messages (Context + New):\n{messages_str}")
         prompt = f"""
-你是一个群聊话题筛选器。请阅读以下几条最新的群聊消息：
+你是一个群聊话题筛选器。以下是最近的群聊记录（包含上下文）：
 {messages_str}
 
+请判断当前的话题进展是否值得机器人（你）介入。
 判断依据：
-1. 任何带有“bot”、“机器人”、“你”等指向性词语的，必须判定为 YES。
-2. 任何疑问句，如果是向群友或机器人提问的，判定为 YES。
-3. 任何有趣、吐槽、争议性话题，判定为 YES。
-4. 只有纯粹的无意义刷屏、表情包、打卡才回复 NO。
+1. 最近的消息中如果有“bot”、“机器人”、“你”等指向性词语，必须判定为 YES。
+2. 最近的消息中如果有向群友或机器人提问的疑问句，判定为 YES。
+3. 当前正在进行有趣、吐槽、争议性话题，且适合插嘴，判定为 YES。
+4. 只有纯粹的无意义刷屏、表情包、打卡，或者话题已经结束，才回复 NO。
 
-如果值得机器人介入，请回复 "YES"；如果是无聊的闲聊，回复 "NO"。
+如果值得机器人介入，请回复 "YES"；否则回复 "NO"。
 只输出 YES 或 NO。
 """
         # Call API

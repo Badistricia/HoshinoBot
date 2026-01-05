@@ -71,12 +71,15 @@ async def execute_logic(bot, gid, inst: GroupInstance):
         return
 
     # Retrieve batch
-    batch_msgs = inst.guard.pop_buffer()
-    # sv.logger.info(f"[ChatSentinel] Processing batch for Group {gid}...")
+    # We still pop buffer to clear it and reset counter, even if we don't use the raw string for judging
+    _ = inst.guard.pop_buffer()
     
     # Judge
+    # Use memory for better context (Sender + ID + History) as requested
+    context_for_judge = inst.memory.get_full_context_str(limit=20)
+    
     try:
-        decision = await judge.check(batch_msgs)
+        decision = await judge.check(context_for_judge)
     except Exception as e:
         sv.logger.error(f"Judge Error: {e}")
         decision = False

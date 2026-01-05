@@ -14,8 +14,8 @@ JUDGE_MODEL_NAME = "deepseek-chat"
 
 
 # System Constants
-BATCH_SIZE = 4
-BATCH_TIMEOUT = 15.0 # Seconds
+BATCH_SIZE = 10
+BATCH_TIMEOUT = 999999 # Disabled effectively, or unused
 DAILY_LIMIT = 1450
 HISTORY_LEN = 500
 

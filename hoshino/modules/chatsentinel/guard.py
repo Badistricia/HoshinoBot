@@ -52,11 +52,9 @@ class TrafficGuard:
         if len(self.pending_buffer) >= config.BATCH_SIZE:
             return True
             
-        # Condition 2: Timeout (Processing cold starts)
-        # Note: This logic works if called periodically or on new message
-        # IMPORTANT: Only trigger timeout if we actually HAVE messages in buffer
-        if len(self.pending_buffer) > 0 and (time.time() - self.last_msg_time > config.BATCH_TIMEOUT):
-            return True
+        # Condition 2: Timeout (Disabled as per user request)
+        # if len(self.pending_buffer) > 0 and (time.time() - self.last_msg_time > config.BATCH_TIMEOUT):
+        #     return True
             
         return False
 

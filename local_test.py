@@ -5,6 +5,7 @@ import os
 from unittest.mock import MagicMock, AsyncMock
 from types import ModuleType
 import time
+import json
 
 # --- 1. Logging Setup ---
 logging.basicConfig(
@@ -14,7 +15,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger("TEST")
 
-# --- 2. Mocking Hoshino & Nonebot ---
+# --- 2. Mocking Dependencies ---
+
+# Mock 'openai' before importing modules that use it
+mock_openai = ModuleType("openai")
+sys.modules["openai"] = mock_openai
+mock_openai.AsyncOpenAI = MagicMock()
+# Setup the client instance returned by AsyncOpenAI()
+mock_openai_client = MagicMock()
+mock_openai.AsyncOpenAI.return_value = mock_openai_client
+# Setup chat.completions.create
+async def mock_judge_create(**kwargs):
+    # Simulate Judge response
+    # Return a mock object with choices[0].message.content
+    logger.info(f"⚖️ [Judge Mock] Received request with {len(kwargs.get('messages', []))} messages")
+    return MagicMock(choices=[MagicMock(message=MagicMock(content="YES"))])
+
+mock_openai_client.chat.completions.create = mock_judge_create
 
 # Create fake 'hoshino' package
 hoshino = ModuleType("hoshino")
@@ -29,10 +46,14 @@ class MockService:
     
     def on_message(self, *args, **kwargs):
         def decorator(func):
-            # Register the handler manually so we can call it
             if not hasattr(self, 'handlers'):
                 self.handlers = []
             self.handlers.append(func)
+            return func
+        return decorator
+
+    def on_fullmatch(self, *args, **kwargs):
+        def decorator(func):
             return func
         return decorator
 
@@ -40,15 +61,10 @@ class MockService:
         def decorator(func):
             return func
         return decorator
-    
-    # Add other methods if needed
-    def on_prefix(self, *args, **kwargs):
-        def decorator(func):
-            return func
-        return decorator
 
 hoshino.Service = MockService
 hoshino.priv = MagicMock()
+hoshino.priv.check_priv.return_value = True
 hoshino.logger = logger
 
 # Create fake 'hoshino.typing'
@@ -71,9 +87,19 @@ nonebot = ModuleType("nonebot")
 sys.modules["nonebot"] = nonebot
 
 class MockBot:
+    def __init__(self):
+        self.config = MagicMock()
+        self.config.self_id = 123456
+
     async def send_group_msg(self, group_id, message):
         logger.info(f"🤖 [BOT SEND] Group {group_id}: {message}")
     
+    async def send(self, ev, message):
+        logger.info(f"🤖 [BOT REPLY] {message}")
+
+    async def finish(self, ev, message):
+        logger.info(f"🤖 [BOT FINISH] {message}")
+
     def __getattr__(self, name):
         return MagicMock()
 
@@ -90,58 +116,25 @@ sys.modules["hoshino.modules.aichat"] = mock_aichat
 hoshino_modules.aichat = mock_aichat
 
 # Mock aichat components
-mock_config_manager = MagicMock()
-mock_aichat.config_manager = mock_config_manager
-mock_config_manager.get_config.return_value = {
-    "model": "mock-gpt",
-    "api_key": "mock-key",
-    "base_url": "mock-url",
-    "temperature": 0.7
-}
-mock_config_manager.apply_default_settings.return_value = {
-    "model": "mock-gpt"
-}
-
-import json
-
-# aichat.conversation_manager
-mock_conversation_manager = MagicMock()
-mock_aichat.conversation_manager = mock_conversation_manager
-
-# Load real personas
-personas_path = os.path.join(os.getcwd(), 'hoshino', 'modules', 'aichat', 'personas.json')
-try:
-    with open(personas_path, 'r', encoding='utf-8') as f:
-        real_personas = json.load(f)
-    logger.info(f"✅ Loaded {len(real_personas)} personas from {personas_path}")
-except Exception as e:
-    logger.warning(f"⚠️ Failed to load personas: {e}, using mock data.")
-    real_personas = {
-        "default": [{"role": "system", "content": "你是一个AI助手"}],
-        "喵喵机": [{"role": "system", "content": "你是凯留，一只猫娘，说话句尾要带喵。"}]
-    }
-
-mock_conversation_manager.personas = real_personas
-
-# Mock persona data for our test group
-mock_conversation_manager.group_conversations = {
-    "1001": {"persona": "喵喵机"} # Default to catgirl for testing
-}
+# We need to mock 'generate_response' or similar if Responder uses it
+# Wait, Responder in chatsentinel calls 'aichat_client.chat.completions.create' or similar?
+# Let's check responder.py. 
+# It likely imports client_manager from aichat.
 
 mock_client_manager = MagicMock()
 mock_aichat.client_manager = mock_client_manager
-mock_client = MagicMock()
-mock_client_manager.get_client.return_value = mock_client
+mock_aichat.config_manager = MagicMock()
+mock_aichat.conversation_manager = MagicMock()
 
-async def mock_create(**kwargs):
-    # Simulate network delay
-    await asyncio.sleep(0.5)
+mock_responder_client = MagicMock()
+mock_client_manager.get_client.return_value = mock_responder_client
+
+async def mock_responder_create(**kwargs):
     messages = kwargs.get('messages', [])
-    user_prompt = messages[-1]['content'] if messages else ""
-    logger.info(f"🔮 [Responder Logic] Context sent to AI:\n{user_prompt[:100]}...")
+    logger.info(f"🗣️ [Responder Mock] Generating reply for context length: {len(messages)}")
     return MagicMock(choices=[MagicMock(message=MagicMock(content="这是模拟的回复喵！(Responder Working)"))])
 
-mock_client.chat.completions.create = mock_create
+mock_responder_client.chat.completions.create = mock_responder_create
 
 # --- 3. Import Target Module ---
 # Add hoshino/modules to path so we can import 'chatsentinel' directly
@@ -154,36 +147,30 @@ try:
     from chatsentinel import handle_msg, execute_logic, get_instance, config
 except ImportError as e:
     logger.error(f"Import failed: {e}")
-    # Print full traceback for easier debugging
     import traceback
     traceback.print_exc()
     sys.exit(1)
 
 # Override config constants for faster testing
-config.BATCH_SIZE = 2
-config.BATCH_TIMEOUT = 5.0
+# config.BATCH_SIZE = 10
+# config.BATCH_TIMEOUT = 99999.0
 
 # --- 4. Interactive Test Loop ---
 async def main():
     print("\n🚀 ChatSentinel Local Test Started!")
     print(f"🔧 Config: Batch Size={config.BATCH_SIZE}, Timeout={config.BATCH_TIMEOUT}s")
+    print(f"🔧 Judge Model: {config.JUDGE_MODEL_NAME}")
     print("💡 Type a message and press Enter. Type 'exit' to quit.")
-    print("   (Messages are accumulated. Default batch trigger is 2 messages)")
 
     bot = MockBot()
     group_id = 1001
     user_id = 101
+    
+    # Initialize instance
+    inst = get_instance(group_id)
+    inst.enabled = True # Force enable for testing
 
-    # Ensure handler is registered
-    # Our MockService registers handlers in self.handlers
-    # But chatsentinel uses 'sv' instance. We need to find that instance.
-    # It is created in chatsentinel/__init__.py: sv = Service(...)
-    # Since we imported chatsentinel, we can access it.
-    service_instance = chatsentinel.sv
-    if hasattr(service_instance, 'handlers'):
-        print(f"✅ Handler registered: {service_instance.handlers}")
-    else:
-        print("⚠️ No handlers registered on Service!")
+    print(f"✅ Instance for Group {group_id} initialized. Enabled: {inst.enabled}")
 
     while True:
         try:
@@ -208,10 +195,12 @@ async def main():
         buffer_len = len(inst.guard.pending_buffer)
         print(f"   [System] Buffer: {buffer_len}/{config.BATCH_SIZE}, Last Msg Time: {inst.guard.last_msg_time}")
 
-        # Manually trigger timeout check if needed (or just rely on batch size)
-        if inst.guard.should_trigger():
-            print("   [System] Triggering Check (Timeout/Manual)...")
-            await execute_logic(bot, group_id, inst)
+        # Manually trigger timeout check if needed (or just rely on batch size logic inside handle_msg)
+        # handle_msg calls execute_logic if buffer full.
+        # But for timeout, we normally rely on scheduler.
+        # Here we can force check if buffer > 0
+        if buffer_len > 0 and buffer_len < config.BATCH_SIZE:
+             print("   [System] Waiting for more messages...")
 
 if __name__ == "__main__":
     try:
