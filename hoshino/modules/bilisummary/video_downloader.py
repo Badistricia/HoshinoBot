@@ -8,6 +8,14 @@ import json
 import re
 from typing import Optional, Tuple, Dict, Any
 
+import builtins
+def safe_print(*args, **kwargs):
+    try:
+        builtins.print(*args, **kwargs)
+    except OSError:
+        pass
+
+
 
 class VideoDownloader:
     """视频下载和压缩工具类"""
@@ -153,7 +161,7 @@ class VideoDownloader:
                 return float(duration_str)
             
         except Exception as e:
-            print(f"获取视频时长失败: {e}")
+            safe_print(f"获取视频时长失败: {e}")
         
         return None
     
@@ -165,19 +173,19 @@ class VideoDownloader:
         """下载视频（优先使用yt-dlp，其次BBDown）"""
         force_bbdown = os.getenv('BILI_FORCE_BBDOWN') == '1'
         if force_bbdown:
-            print("已启用 BILI_FORCE_BBDOWN=1，将优先使用BBDown")
+            safe_print("已启用 BILI_FORCE_BBDOWN=1，将优先使用BBDown")
         
         if self.bbdown_path and force_bbdown:
             result = await self.download_video_with_bbdown(video_id, output_dir, cookies_path)
             if result:
                 return result
-            print("BBDown下载失败，尝试使用yt-dlp...")
+            safe_print("BBDown下载失败，尝试使用yt-dlp...")
         
         if self.ytdlp_path:
             result = await self.download_video_with_ytdlp(video_id, output_dir, cookies_path)
             if result:
                 return result
-            print("yt-dlp下载失败，尝试使用BBDown...")
+            safe_print("yt-dlp下载失败，尝试使用BBDown...")
         
         if self.bbdown_path and not force_bbdown:
             return await self.download_video_with_bbdown(video_id, output_dir, cookies_path)
@@ -212,7 +220,7 @@ class VideoDownloader:
             
             return True
         except Exception as e:
-            print(f"转换Cookies格式失败: {e}")
+            safe_print(f"转换Cookies格式失败: {e}")
             return False
 
     async def download_video_with_ytdlp(self, video_id: str, output_dir: str, cookies_path: Optional[str] = None) -> Optional[str]:
@@ -223,9 +231,9 @@ class VideoDownloader:
         debug_mode = os.getenv('BILI_YTDLP_DEBUG') == '1'
         no_cookies = os.getenv('BILI_YTDLP_NO_COOKIES') == '1'
         if debug_mode:
-            print("已启用 BILI_YTDLP_DEBUG 调试模式")
+            safe_print("已启用 BILI_YTDLP_DEBUG 调试模式")
         if no_cookies:
-            print("已启用 BILI_YTDLP_NO_COOKIES，跳过 Cookies 参数")
+            safe_print("已启用 BILI_YTDLP_NO_COOKIES，跳过 Cookies 参数")
             
         # 自动查找并转换 cookies
         if (not cookies_path or not os.path.exists(cookies_path)) and not no_cookies:
@@ -238,7 +246,7 @@ class VideoDownloader:
                 generated_cookies = os.path.join(current_dir, 'cookies.txt')
                 if self._convert_json_cookies_to_netscape(json_cookies, generated_cookies):
                     cookies_path = generated_cookies
-                    print(f"已自动转换并加载 Cookies: {cookies_path}")
+                    safe_print(f"已自动转换并加载 Cookies: {cookies_path}")
             
         try:
             base_cmd = [
@@ -260,29 +268,29 @@ class VideoDownloader:
             if os.name == 'nt':
                 # Windows 环境
                 user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                print(f"检测到 Windows 环境，使用 Windows User-Agent")
+                safe_print(f"检测到 Windows 环境，使用 Windows User-Agent")
             else:
                 # Linux/其他 环境 (使用更通用的 Linux Chrome UA)
                 user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                print(f"检测到 Linux/非Windows 环境，使用 Linux User-Agent")
+                safe_print(f"检测到 Linux/非Windows 环境，使用 Linux User-Agent")
             
             cmd = base_cmd + ['--user-agent', user_agent]
             
-            print(f"执行yt-dlp命令 (尝试1): {' '.join(cmd)}")
+            safe_print(f"执行yt-dlp命令 (尝试1): {' '.join(cmd)}")
             
             try:
                 returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
             except Exception as e:
-                print(f"yt-dlp subprocess error: {e}")
+                safe_print(f"yt-dlp subprocess error: {e}")
                 return None
             
             # 如果失败且是 412 错误，尝试不带 User-Agent 重试 (让yt-dlp使用默认UA)
             if returncode != 0:
                 error_msg = stderr.decode() if stderr else ""
                 if '412' in error_msg or 'HTTP Error 412' in error_msg:
-                    print("检测到 412 错误，尝试移除自定义 User-Agent 重试...")
+                    safe_print("检测到 412 错误，尝试移除自定义 User-Agent 重试...")
                     cmd = base_cmd  # 使用不带 UA 的基础命令 (使用yt-dlp默认UA)
-                    print(f"执行yt-dlp命令 (尝试2): {' '.join(cmd)}")
+                    safe_print(f"执行yt-dlp命令 (尝试2): {' '.join(cmd)}")
                     returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
             
             if returncode == 0:
@@ -291,10 +299,10 @@ class VideoDownloader:
                     if file.endswith(('.mp4', '.mkv', '.flv')):
                         return os.path.join(output_dir, file)
             else:
-                print(f"yt-dlp下载失败: {stderr.decode() if stderr else 'Unknown error'}")
+                safe_print(f"yt-dlp下载失败: {stderr.decode() if stderr else 'Unknown error'}")
                 
         except Exception as e:
-            print(f"yt-dlp下载异常: {e}")
+            safe_print(f"yt-dlp下载异常: {e}")
             import traceback
             traceback.print_exc()
             
@@ -307,7 +315,7 @@ class VideoDownloader:
         
         bbdown_debug = os.getenv('BILI_BBDOWN_DEBUG') == '1'
         if bbdown_debug:
-            print("已启用 BILI_BBDOWN_DEBUG=1，BBDown将输出调试信息")
+            safe_print("已启用 BILI_BBDOWN_DEBUG=1，BBDown将输出调试信息")
         
         try:
             cmd = [
@@ -337,9 +345,9 @@ class VideoDownloader:
                         cookie_str = '; '.join(cookie_items)
                         cmd.extend(['--cookie', cookie_str])
                 except Exception as e:
-                    print(f"读取Cookies文件失败，将不使用Cookies: {e}")
+                    safe_print(f"读取Cookies文件失败，将不使用Cookies: {e}")
             
-            print(f"执行BBDown命令: {' '.join(cmd)}")
+            safe_print(f"执行BBDown命令: {' '.join(cmd)}")
             
             returncode, stdout, stderr = await self._run_subprocess(cmd, cwd=output_dir)
             
@@ -349,10 +357,10 @@ class VideoDownloader:
                     if file.endswith(('.mp4', '.mkv', '.flv')):
                         return os.path.join(output_dir, file)
             else:
-                print(f"BBDown下载失败: {stderr.decode()}")
+                safe_print(f"BBDown下载失败: {stderr.decode()}")
             
         except Exception as e:
-            print(f"下载视频失败: {e}")
+            safe_print(f"下载视频失败: {e}")
         
         return None
     
@@ -393,7 +401,7 @@ class VideoDownloader:
                 output_path
             ]
             
-            print(f"执行FFmpeg压缩命令: {' '.join(cmd)}")
+            safe_print(f"执行FFmpeg压缩命令: {' '.join(cmd)}")
             
             returncode, stdout, stderr = await self._run_subprocess(cmd)
             
@@ -401,19 +409,19 @@ class VideoDownloader:
                 # 检查压缩后的文件大小
                 if os.path.exists(output_path):
                     file_size_mb = os.path.getsize(output_path) / (1024 * 1024)
-                    print(f"压缩完成，文件大小: {file_size_mb:.2f}MB")
+                    safe_print(f"压缩完成，文件大小: {file_size_mb:.2f}MB")
                     
                     # 如果文件仍然太大，进行更激进的压缩
                     if file_size_mb > target_size_mb * 1.2:
-                        print("文件仍然过大，进行二次压缩...")
+                        safe_print("文件仍然过大，进行二次压缩...")
                         return await self._aggressive_compress(input_path, output_path, target_size_mb)
                     
                     return True
             else:
-                print(f"FFmpeg压缩失败: {stderr.decode()}")
+                safe_print(f"FFmpeg压缩失败: {stderr.decode()}")
             
         except Exception as e:
-            print(f"压缩视频失败: {e}")
+            safe_print(f"压缩视频失败: {e}")
         
         return False
     
@@ -451,7 +459,7 @@ class VideoDownloader:
             return returncode == 0
             
         except Exception as e:
-            print(f"激进压缩失败: {e}")
+            safe_print(f"激进压缩失败: {e}")
             return False
     
     def cleanup_temp_files(self, temp_dir: str):
@@ -459,9 +467,9 @@ class VideoDownloader:
         try:
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
-                print(f"清理临时目录: {temp_dir}")
+                safe_print(f"清理临时目录: {temp_dir}")
         except Exception as e:
-            print(f"清理临时文件失败: {e}")
+            safe_print(f"清理临时文件失败: {e}")
     
     async def process_short_video(self, video_id: str, target_size_mb: int = 10, cookies_path: Optional[str] = None) -> Tuple[Optional[str], str]:
         """处理短视频：下载并压缩"""
@@ -480,7 +488,7 @@ class VideoDownloader:
         
         try:
             # 下载视频
-            print(f"开始下载视频: {video_id}")
+            safe_print(f"开始下载视频: {video_id}")
             downloaded_file = await self.download_video(video_id, temp_dir, cookies_path)
             
             if not downloaded_file:
@@ -493,18 +501,18 @@ class VideoDownloader:
             
             # 直接返回下载的文件（跳过压缩）
             file_size_mb = os.path.getsize(downloaded_file) / (1024 * 1024)
-            print(f"跳过压缩，直接发送原文件: {file_size_mb:.2f}MB")
+            safe_print(f"跳过压缩，直接发送原文件: {file_size_mb:.2f}MB")
             
             # 简单的文件大小检查警告
             if file_size_mb > 100:
-                print(f"警告：文件大小 {file_size_mb:.2f}MB 可能超过发送限制")
+                safe_print(f"警告：文件大小 {file_size_mb:.2f}MB 可能超过发送限制")
                 
             return downloaded_file, f"视频下载完成，文件大小: {file_size_mb:.2f}MB"
             
             """
             # 压缩视频
             compressed_file = os.path.join(temp_dir, f"compressed_{video_id}.mp4")
-            print(f"开始压缩视频，目标大小: {target_size_mb}MB")
+            safe_print(f"开始压缩视频，目标大小: {target_size_mb}MB")
             
             if await self.compress_video(downloaded_file, compressed_file, target_size_mb):
                 # 检查最终文件大小
@@ -519,7 +527,7 @@ class VideoDownloader:
             """
         
         except Exception as e:
-            print(f"处理视频失败: {e}")
+            safe_print(f"处理视频失败: {e}")
             return None, f"处理失败: {str(e)}"
         
         finally:

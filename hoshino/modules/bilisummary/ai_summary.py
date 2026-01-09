@@ -2,6 +2,14 @@ import os
 import json
 import sys
 
+import builtins
+def safe_print(*args, **kwargs):
+    try:
+        builtins.print(*args, **kwargs)
+    except OSError:
+        pass
+
+
 # 添加当前目录到sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -21,7 +29,7 @@ def load_config():
             with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"加载配置文件出错: {e}")
+            safe_print(f"加载配置文件出错: {e}")
     
     # 默认配置
     default_config = {
@@ -38,7 +46,7 @@ def load_config():
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             json.dump(default_config, f, indent=4, ensure_ascii=False)
     except Exception as e:
-        print(f"保存默认配置出错: {e}")
+        safe_print(f"保存默认配置出错: {e}")
     
     return default_config
 
@@ -91,7 +99,7 @@ async def generate_summary(video_info, subtitle=None, max_length=1000):
         return summary
     
     except Exception as e:
-        print(f"生成摘要出错: {e}")
+        safe_print(f"生成摘要出错: {e}")
         # 生成简单摘要作为备选
         return generate_simple_summary(video_info, subtitle)
 
