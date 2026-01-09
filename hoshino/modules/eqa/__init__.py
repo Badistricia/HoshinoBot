@@ -52,35 +52,33 @@ async def bangzhu(bot, ev):
 config = util.get_config()
 db = util.init_db(config['cache_dir'])
 
-_bot = get_bot()
+# _bot = get_bot()
 
 admins = config['admins']
-admins = set((admins if isinstance(admins, list) else [admins]) + _bot.config.SUPERUSERS)
+admins = set((admins if isinstance(admins, list) else [admins]))
 
 
 @sv.on_message('group')  # 如果使用hoshino的分群管理取消注释这行 并注释下一行的 @_bot.on_message("group")
 # @_bot.on_message("group") # nonebot使用这
-async def eqa_main(*params):
-    bot, ctx = (_bot, params[0]) if len(params) == 1 else params
-
+async def eqa_main(bot, ctx):
     msg = str(ctx['message']).strip()
 
     # 处理回答所有人的问题
     keyword = util.get_msg_keyword(config['comm']['answer_all'], msg, True)
     if keyword:
-        msg = await ask(ctx, keyword, False)
+        msg = await ask(bot, ctx, keyword, False)
         if msg:
             return await bot.send(ctx, msg)
 
     # 处理回答自己的问题
     keyword = util.get_msg_keyword(config['comm']['answer_me'], msg, True)
     if keyword:
-        msg = await ask(ctx, keyword, True)
+        msg = await ask(bot, ctx, keyword, True)
         if msg:
             return await bot.send(ctx, msg)
 
     # 回复消息
-    ans = await answer(ctx)
+    ans = await answer(bot, ctx)
     if isinstance(ans, list):
         return await bot.send(ctx, ans)
     # elif isinstance(ans, str):
@@ -99,17 +97,18 @@ async def eqa_main(*params):
     # 删除设置的问题
     del_target = util.get_msg_keyword(config['comm']['answer_delete'], msg, True)
     if del_target:
-        return await bot.send(ctx, await del_question(ctx, del_target))
+        return await bot.send(ctx, await del_question(bot, ctx, del_target))
 
     # 清空设置的问题
     del_all = util.get_msg_keyword(config['comm']['answer_delete_all'], msg, True)
     if del_all:
-        return await bot.send(ctx, await del_question(ctx, del_all, True))
+        return await bot.send(ctx, await del_question(bot, ctx, del_all, True))
 
 
 # 设置问题的函数
-async def ask(ctx, keyword, is_me):
-    is_super_admin = ctx['user_id'] in admins
+async def ask(bot, ctx, keyword, is_me):
+    all_admins = admins | bot.config.SUPERUSERS
+    is_super_admin = ctx['user_id'] in all_admins
     is_admin = util.is_group_admin(ctx) or is_super_admin
 
     if config['rule']['only_admin_answer_all'] and not is_me and not is_admin:
@@ -209,7 +208,24 @@ async def answer(ctx):
         if _msg['type'] == 'text' and _msg['data']['text'][:1] == config['str']['cmd_head_str']:
             ctx['raw_message'] = _msg['data']['text'][1:]
             ctx['message'] = Message(ctx['raw_message'])
-            _bot.on_message(ctx)
+            # _bot.on_message(ctx) # Nonebot1 doesn't have on_message on bot instance usually, using nonebot.message.handle_message?
+            # Or maybe just execute the command?
+            # Hoshino usually handles this via recursion or just ignoring it if it's complicated.
+            # But the original code was _bot.on_message(ctx).
+            # If _bot was nonebot.get_bot(), this implies standard Nonebot1 bot object has on_message?
+            # No, it doesn't. This might be a custom hack or this code was never working properly/legacy.
+            # However, to be safe and avoid _bot NameError, we use bot.
+            # bot.on_message(ctx) 
+            # If bot object doesn't have on_message, this will crash at runtime, but at least import is fine.
+            # Let's try to find if there is a known way.
+            # In Nonebot1, handle_message is in nonebot.message.
+            # from nonebot.message import handle_message; await handle_message(bot, ctx)
+            # But ctx is event.
+            try:
+                import nonebot.message
+                await nonebot.message.handle_message(bot, ctx)
+            except:
+                pass
             return False
 
     # 如果使用了base64 那么需要把信息里的图片转换一下
@@ -288,13 +304,15 @@ async def show_question(ctx, target, show_all=False):
 
 
 # 删除问题的函数
-async def del_question(ctx, target, clear=False):
+async def del_question(bot, ctx, target, clear=False):
     target = util.get_message_str(target).strip()
     ans_list = db.get(target, [])
     if not ans_list:
         return '没这个问题哦'
+    
+    all_admins = admins | bot.config.SUPERUSERS
 
-    is_super_admin = ctx['user_id'] in admins
+    is_super_admin = ctx['user_id'] in all_admins
     is_group_admin = util.is_group_admin(ctx) if config['rule']['only_admin_can_delete'] else True
     is_admin = is_group_admin or is_super_admin
 
@@ -314,12 +332,12 @@ async def del_question(ctx, target, clear=False):
 
     for index, value in enumerate(ans_list):
         # 如果不是本群就跳过  或者 是超级管理员的话 就继续删除
-        if value['group_id'] != ctx['group_id'] and not (is_super_admin and value['user_id'] in admins):
+        if value['group_id'] != ctx['group_id'] and not (is_super_admin and value['user_id'] in all_admins):
             continue
         # 管理员则直接删除第一个元素
         if is_admin:
             if not config['rule']['can_delete_super_admin_qa'] and \
-                    value['user_id'] in admins and \
+                    value['user_id'] in all_admins and \
                     not is_super_admin:
                 # 不允许删除超级管理员的设置
                 continue

@@ -89,7 +89,8 @@ async def execute_logic(bot, gid, inst: GroupInstance):
     
     # Judge
     # Use memory for better context (Sender + ID + History) as requested
-    context_for_judge = inst.memory.get_full_context_str(limit=20)
+    # Increased context limit to 60 as per user request (was 20)
+    context_for_judge = inst.memory.get_full_context_str(limit=60)
     
     try:
         decision = await judge.check(context_for_judge)
