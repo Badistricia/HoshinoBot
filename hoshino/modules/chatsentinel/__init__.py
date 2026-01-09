@@ -22,7 +22,6 @@ async def enable_service(bot, ev: CQEvent):
     gid = ev.group_id
     inst = get_instance(gid)
     inst.enabled = True
-    await bot.send(ev, '潜水姬已开启！我会默默观察大家的喵~ 😺')
 
 @sv.on_fullmatch(('关闭潜水姬', '禁用潜水姬', '关闭潜水AI', 'disable_chatsentinel'))
 async def disable_service(bot, ev: CQEvent):

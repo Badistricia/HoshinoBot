@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 from typing import List, Set
 from sqlitedict import SqliteDict
+import nonebot
 from nonebot import *
 import base64
 import requests
@@ -11,7 +12,7 @@ import json
 import os
 import re
 
-bot = get_bot()
+# bot = get_bot()
 
 
 # 获取配置
