@@ -88,6 +88,7 @@ def filter_list(plist, func):
 
 # 获取群内的群友名字
 async def get_group_member_name(group_id, user_id):
+    bot = nonebot.get_bot()
     qq_info = await bot.get_group_member_info(group_id=group_id, user_id=user_id)
     return qq_info['card'] or qq_info['nickname']
 

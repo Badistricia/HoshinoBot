@@ -1,4 +1,5 @@
 from nonebot import *
+from nonebot import CommandSession
 import json
 from random import randint
 import asyncio

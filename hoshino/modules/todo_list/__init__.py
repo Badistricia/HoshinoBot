@@ -132,7 +132,7 @@ async def list_todo(bot, ev: CQEvent):
     msg = f"[CQ:image,file=base64://{b64_str}]"
     await bot.send(ev, msg)
 
-@sv.on_prefix(('完成', 'ok', 'done'))
+@sv.on_prefix(('完成', 'done'))
 async def finish_todo(bot, ev: CQEvent):
     user_id, group_id = get_ids(ev)
     todo_id = ev.message.extract_plain_text().strip()

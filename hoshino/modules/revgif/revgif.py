@@ -62,27 +62,43 @@ async def match_revgif(bot, ev, custom=None):
 
 async def do_revgif(bot, ev, image_url):
     print("正在准备图片")
-    response = requests.get(image_url, headers=headers)
-    image = Image.open(BytesIO(response.content))
-    print(f"frames:{image.n_frames}, mode:{image.mode}, info:{image.info}")
+    try:
+        response = requests.get(image_url, headers=headers)
+        response.raise_for_status() # Check for HTTP errors
+        
+        # Check content type if possible
+        content_type = response.headers.get('Content-Type', '')
+        if 'image' not in content_type and 'application/octet-stream' not in content_type:
+             # Some CDNs return application/octet-stream for images
+             await bot.finish(ev, f"下载的不是图片喵？(Content-Type: {content_type})")
 
-    if image.n_frames == 1:
-        await bot.finish(ev, "并非GIF图片")
-    if image.n_frames > 200:
-        await bot.finish(ev, "GIF帧数太多了，懒得倒放[CQ:face,id=13]")
+        image = Image.open(BytesIO(response.content))
+        print(f"frames:{getattr(image, 'n_frames', 1)}, mode:{image.mode}") # Safe getattr
 
-    sequence = []
-    for f in ImageSequence.Iterator(image):
-        sequence.append(f.copy())
-    if len(sequence) > 30:
-        await bot.send(ev, "ℹ正在翻转图片序列，请稍候")
-    sequence.reverse()
-    gif_path = os.path.join(fd, f"{ev.user_id}.gif")
-    sequence[0].save(gif_path, save_all=True,
-                     append_images=sequence[1:], disposal=1, loop=0)
+        if getattr(image, 'n_frames', 1) <= 1:
+            await bot.finish(ev, "并非GIF图片或者只有一帧喵~")
+        if image.n_frames > 200:
+            await bot.finish(ev, "GIF帧数太多了，懒得倒放[CQ:face,id=13]")
 
-    if os.path.exists(gif_path):
-        await bot.send(ev, f"[CQ:image,file=file:///{gif_path}]")
-        os.remove(gif_path)
-    else:
-        await bot.finish(ev, "写入文件时发生未知错误")
+        sequence = []
+        for f in ImageSequence.Iterator(image):
+            sequence.append(f.copy())
+        if len(sequence) > 30:
+            await bot.send(ev, "ℹ正在翻转图片序列，请稍候")
+        sequence.reverse()
+        gif_path = os.path.join(fd, f"{ev.user_id}.gif")
+        sequence[0].save(gif_path, save_all=True,
+                         append_images=sequence[1:], disposal=1, loop=0)
+
+        if os.path.exists(gif_path):
+            await bot.send(ev, f"[CQ:image,file=file:///{gif_path}]")
+            os.remove(gif_path)
+        else:
+            await bot.finish(ev, "写入文件时发生未知错误")
+            
+    except requests.exceptions.RequestException as e:
+        await bot.finish(ev, f"下载图片失败了喵: {e}")
+    except (IOError, SyntaxError) as e: # PIL errors
+        await bot.finish(ev, f"图片无法识别，可能不是有效的图片格式喵: {e}")
+    except Exception as e:
+        await bot.finish(ev, f"发生未知错误: {e}")
