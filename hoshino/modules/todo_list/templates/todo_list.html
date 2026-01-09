@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @font-face {
+            font-family: 'Handwriting';
+            src: local('Microsoft YaHei'), local('SimHei'); 
+        }
+        body {
+            background-color: transparent;
+            font-family: 'Handwriting', sans-serif;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background-color: #fef3bd;
+            width: 350px;
+            min-height: 400px;
+            padding: 30px;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.2);
+            position: relative;
+            transform: rotate(-1deg);
+            border-radius: 2px;
+        }
+        /* Sticky tape effect */
+        .tape {
+            background-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            width: 120px;
+            height: 35px;
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-2deg);
+            z-index: 10;
+        }
+        h1 {
+            text-align: center;
+            color: #555;
+            border-bottom: 2px dashed #aaa;
+            padding-bottom: 10px;
+            margin-top: 15px;
+            font-size: 24px;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+        li {
+            border-bottom: 1px solid #e0d8a0;
+            padding: 12px 5px;
+            color: #333;
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+            font-size: 18px;
+        }
+        li:last-child {
+            border-bottom: none;
+        }
+        li.done {
+            text-decoration: line-through;
+            color: #999;
+        }
+        .meta {
+            font-size: 0.7em;
+            color: #d35400;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+        }
+        .id-badge {
+            font-weight: bold;
+            margin-right: 8px;
+            color: #d35400;
+            font-family: monospace;
+            background: rgba(211, 84, 0, 0.1);
+            padding: 0 4px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+        .empty-hint {
+            text-align: center; 
+            color: #888; 
+            margin-top: 50px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="tape"></div>
+        <h1>Todo List</h1>
+        <ul>
+            {% for item in todos %}
+            <li class="{% if item.is_done %}done{% endif %}">
+                <div>
+                    <span class="id-badge">#{{ item.id }}</span>
+                    {{ item.content }}
+                </div>
+                {% if item.due_date and not item.is_done %}
+                <div class="meta">⏰ {{ item.due_date }}</div>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% if not todos %}
+        <div class="empty-hint">
+            喵~ 暂时没有待办事项哦！<br>
+            输入 "记 [事情]" 来添加吧！
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
