@@ -2,7 +2,7 @@
 from typing import List, Set
 from sqlitedict import SqliteDict
 import nonebot
-from nonebot import *
+from nonebot import Message, MessageSegment
 import base64
 import requests
 import imghdr

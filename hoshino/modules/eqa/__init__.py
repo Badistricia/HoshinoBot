@@ -6,7 +6,7 @@
 """
 import re
 import random
-from nonebot import *
+from nonebot import Message, MessageSegment
 from . import util
 
 from hoshino import Service, priv  # 如果使用hoshino的分群管理取消注释这行
