@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 from typing import List, Dict, Optional
-import uuid
 
 # Define the data path. 
 # Using absolute path relative to the bot's root directory which seems to be D:\Project\Pycharm\Git\HoshinoBot
@@ -35,15 +34,33 @@ class DataManager:
             return f"group_{group_id}_user_{user_id}"
         return f"user_{user_id}"
 
+    def _get_next_id(self, todos: List[Dict]) -> str:
+        """
+        Get the next smallest available ID (1, 2, 3...)
+        """
+        existing_ids = set()
+        for t in todos:
+            # Only consider numeric IDs
+            try:
+                existing_ids.add(int(t['id']))
+            except ValueError:
+                pass
+        
+        next_id = 1
+        while next_id in existing_ids:
+            next_id += 1
+            
+        return str(next_id)
+
     def add_todo(self, user_id: str, group_id: Optional[str], content: str, created_at: str, due_date: Optional[str] = None) -> Dict:
         data = self._load_data()
         key = self._get_key(user_id, group_id)
         
         if key not in data:
             data[key] = []
-            
-        # Generate a short ID (4 chars is usually enough for a list, but let's use 6 for safety)
-        todo_id = str(uuid.uuid4())[:6]
+        
+        # Recycle ID
+        todo_id = self._get_next_id(data[key])
         
         new_item = {
             "id": todo_id,
@@ -54,15 +71,18 @@ class DataManager:
         }
         
         data[key].append(new_item)
+        # Sort by ID for tidiness
+        try:
+            data[key].sort(key=lambda x: int(x['id']) if x['id'].isdigit() else 9999)
+        except:
+            pass
+            
         self._save_data(data)
         return new_item
 
     def get_user_todos(self, user_id: str, group_id: Optional[str]) -> List[Dict]:
         data = self._load_data()
         key = self._get_key(user_id, group_id)
-        # Filter out deleted ones if we were doing soft delete, but we are doing physical delete
-        # Return only unfinished ones? User said "读取该用户的未完成任务" for list.
-        # But the method name is generic. Let's return all and filter in logic.
         return data.get(key, [])
 
     def get_pending_todos(self, user_id: str, group_id: Optional[str]) -> List[Dict]:
@@ -75,7 +95,7 @@ class DataManager:
         
         if key in data:
             for item in data[key]:
-                if item["id"] == todo_id:
+                if item["id"] == str(todo_id):
                     item["is_done"] = True
                     self._save_data(data)
                     return item
@@ -87,7 +107,7 @@ class DataManager:
         
         if key in data:
             original_len = len(data[key])
-            data[key] = [item for item in data[key] if item["id"] != todo_id]
+            data[key] = [item for item in data[key] if item["id"] != str(todo_id)]
             if len(data[key]) < original_len:
                 self._save_data(data)
                 return True
@@ -99,7 +119,7 @@ class DataManager:
         if key in data:
             del data[key]
             self._save_data(data)
-
+    
     def get_all_todos(self) -> Dict:
         """Used for startup recovery"""
         return self._load_data()
