@@ -48,6 +48,7 @@ async def handle_msg(bot, ev: CQEvent):
     inst = get_instance(gid)
     
     # 1. Record to memory (always, even if disabled, to maintain context for when enabled)
+    # This ensures that even if we trigger immediately, the current message is in the context.
     inst.memory.add(sender, str(ev.user_id), text)
     
     # Check if enabled
@@ -55,11 +56,24 @@ async def handle_msg(bot, ev: CQEvent):
         return
 
     # 2. Add to buffer (filter applied inside)
-    # Note: Only add to buffer if it's a "user" message suitable for judging
+    # The buffer is for "batching" triggers, but context comes from memory.
     inst.guard.add_to_buffer(text)
     
     # 3. Trigger check
-    if inst.guard.should_trigger():
+    # Check for keywords for immediate response
+    keywords = ['凯留', '臭鼬', '接头霸王', '黑猫', '佩可', '可可萝']
+    is_urgent = any(k in text for k in keywords)
+    
+    should_run = False
+    if is_urgent:
+        # Urgent messages trigger immediately if limits allow
+        if inst.guard.check_limits():
+            should_run = True
+    elif inst.guard.should_trigger():
+        # Normal batch trigger
+        should_run = True
+        
+    if should_run:
         await execute_logic(bot, gid, inst)
 
 from .manager import get_instance, GroupInstance, instances
@@ -98,7 +112,8 @@ async def execute_logic(bot, gid, inst: GroupInstance):
             reply = await responder.generate(gid, full_context)
             if reply:
                 # Add Bot's reply to memory so it knows what it said
-                inst.memory.add("ChatSentinel", str(bot.config.self_id) if hasattr(bot.config, 'self_id') else 'Bot', reply)
+                # Use "凯留" as sender name to be consistent with Persona
+                inst.memory.add("凯留", "Bot", reply)
                 await bot.send_group_msg(group_id=gid, message=reply)
                 
                 # Cooldown

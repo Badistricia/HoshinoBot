@@ -36,6 +36,20 @@ class TrafficGuard:
         self.pending_buffer.append(msg)
         return True
 
+    def check_limits(self) -> bool:
+        """
+        Check if daily limit and cooldown allow triggering, ignoring batch size.
+        """
+        self._check_reset_daily()
+        
+        if self.daily_usage >= config.DAILY_LIMIT:
+            return False
+            
+        if time.time() < self.cooldown_until:
+            return False
+            
+        return True
+
     def should_trigger(self) -> bool:
         self._check_reset_daily()
         
