@@ -88,15 +88,19 @@ async def execute_logic(bot, gid, inst: GroupInstance):
     _ = inst.guard.pop_buffer()
     
     # Judge
-    # Use memory for better context (Sender + ID + History) as requested
-    # Increased context limit to 60 as per user request (was 20)
-    context_for_judge = inst.memory.get_full_context_str(limit=60)
-    
-    try:
-        decision = await judge.check(context_for_judge)
-    except Exception as e:
-        sv.logger.error(f"Judge Error: {e}")
-        decision = False
+    if force_reply:
+        decision = True
+        sv.logger.info(f"[ChatSentinel] Urgent keyword detected. Skipping judge.")
+    else:
+        # Use memory for better context (Sender + ID + History) as requested
+        # Increased context limit to 60 as per user request (was 20)
+        context_for_judge = inst.memory.get_full_context_str(limit=60)
+        
+        try:
+            decision = await judge.check(context_for_judge)
+        except Exception as e:
+            sv.logger.error(f"Judge Error: {e}")
+            decision = False
     
     if decision:
         # sv.logger.info(f"[ChatSentinel] Judge said YES! Generating reply...")

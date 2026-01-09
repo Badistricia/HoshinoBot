@@ -237,16 +237,18 @@ async def answer(ctx):
 
 
 # 显示问题的函数
-async def show_question(ctx, target, show_all=False):
+async def show_question(bot, ctx, target, show_all=False):
     print_all_split = config['str']['print_all_split'] or " | "
 
     db_list = list(db.values())
     # 获取当前群设置的问题列表
     ans_list = util.get_current_ans_list(ctx, db_list)
+    
+    all_admins = admins | bot.config.SUPERUSERS
 
     if not show_all:
         # 如果只显示个人
-        is_super_admin = ctx['user_id'] in admins
+        is_super_admin = ctx['user_id'] in all_admins
         is_admin = util.is_group_admin(ctx) or is_super_admin
 
         # 如果跟了@人的对象
@@ -270,7 +272,7 @@ async def show_question(ctx, target, show_all=False):
         priority_list = []
         if not show_all:  # 不是显示全部的话就筛选个人
             # 获取当前qq设置问题列表
-            if qq in admins:
+            if qq in all_admins:
                 ans_list = util.get_all_ans_list_by_qq(qq, db_list)
             else:
                 ans_list = util.get_all_ans_list_by_qq(qq, ans_list)
@@ -281,7 +283,7 @@ async def show_question(ctx, target, show_all=False):
             # 这人个人问答
             priority_list = util.filter_list(ans_list, lambda x: True in list(i['is_me'] for i in x))
 
-            ans_list = sum(list(util.get_all_ans_list_by_qq(q, db_list) for q in admins), all_list)
+            ans_list = sum(list(util.get_all_ans_list_by_qq(q, db_list) for q in all_admins), all_list)
 
         # 如果是多个人 那就加个名字区别一下
         if is_at:
