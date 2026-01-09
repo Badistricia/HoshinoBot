@@ -165,7 +165,7 @@ async def delete_todo(bot, ev: CQEvent):
     else:
         await bot.send(ev, f"喵？找不到 ID 为 {todo_id} 的待办事项哦...")
 
-@sv.on_prefix(('清空代办', 'clear todo'))
+@sv.on_prefix(('清空代办', 'clear todo', '清除所有', '清空', 'clear all'))
 async def clear_todo(bot, ev: CQEvent):
     # Require confirmation
     user_id, group_id = get_ids(ev)
@@ -175,6 +175,7 @@ async def clear_todo(bot, ev: CQEvent):
         await bot.send(ev, "主人真的要清空所有待办吗？😱\n如果确认，请发送「清空代办 确认」喵！")
         return
     
+    # Remove all scheduled jobs for this user/group first
     todos = data_manager.get_user_todos(user_id, group_id)
     for t in todos:
         if not t['is_done']:
@@ -182,3 +183,12 @@ async def clear_todo(bot, ev: CQEvent):
             
     data_manager.clear_todos(user_id, group_id)
     await bot.send(ev, "呼...所有待办都清空啦，一片空白喵~ ✨")
+
+@sv.on_prefix(('清空已完成', 'clean done'))
+async def clean_done(bot, ev: CQEvent):
+    user_id, group_id = get_ids(ev)
+    count = data_manager.delete_completed_todos(user_id, group_id)
+    if count > 0:
+        await bot.send(ev, f"好哒！已经清理了 {count} 条已完成的任务喵~ 🧹")
+    else:
+        await bot.send(ev, "喵？没有已完成的任务需要清理哦~")

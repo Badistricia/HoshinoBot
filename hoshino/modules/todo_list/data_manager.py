@@ -119,6 +119,19 @@ class DataManager:
         if key in data:
             del data[key]
             self._save_data(data)
+
+    def delete_completed_todos(self, user_id: str, group_id: Optional[str]) -> int:
+        data = self._load_data()
+        key = self._get_key(user_id, group_id)
+        count = 0
+        if key in data:
+            original_len = len(data[key])
+            # Keep only not done items
+            data[key] = [item for item in data[key] if not item["is_done"]]
+            count = original_len - len(data[key])
+            if count > 0:
+                self._save_data(data)
+        return count
     
     def get_all_todos(self) -> Dict:
         """Used for startup recovery"""
