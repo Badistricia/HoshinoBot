@@ -1125,14 +1125,21 @@ async def execute_daily_summary(bot, target_groups=None, day_offset=0, start_hou
                 else:
                     log_warning("Playwright不可用，使用文本方式发送")
                 
+                # 无论图片是否生成成功，都先发送文本版（作为兜底和备份）
+                log_info(f"正在向群 {group_id} 发送文本日报...")
+                message_to_send = f"【{date_str} 群聊日报】\n{message_prefix}{summary}"
+                try:
+                    await bot.send_group_msg(
+                        group_id=int(group_id),
+                        message=message_to_send
+                    )
+                    log_info(f"成功向群 {group_id} 发送文本日报")
+                except Exception as e:
+                    log_warning(f"向群 {group_id} 发送文本日报失败: {str(e)}")
+
                 # 如果图片生成成功，则发送图片
                 if image_data and len(image_data) > 1000:  # 确保图片有足够的大小，不是空白图片
                     log_info(f"准备向群 {group_id} 发送图片日报...")
-                    # 发送前缀消息
-                    await bot.send_group_msg(
-                        group_id=int(group_id),
-                        message=f"【{date_str} 群聊日报】\n{message_prefix.rstrip()}"
-                    )
                     # 转换为base64发送图片
                     b64_str = base64.b64encode(image_data).decode()
                     await bot.send_group_msg(
@@ -1141,14 +1148,9 @@ async def execute_daily_summary(bot, target_groups=None, day_offset=0, start_hou
                     )
                     log_info(f"成功向群 {group_id} 发送图片日报")
                 else:
-                    # 如果图片生成失败，发送文本版
-                    log_info(f"图片生成失败或过小，向群 {group_id} 发送文本日报...")
-                    message_to_send = f"【{date_str} 群聊日报】\n{message_prefix}{summary}"
-                    await bot.send_group_msg(
-                        group_id=int(group_id),
-                        message=message_to_send
-                    )
-                    log_info(f"成功向群 {group_id} 发送文本日报")
+                    # 图片失败，但文本已经发过了，这里只记录日志
+                    log_warning(f"图片生成失败或过小，群 {group_id} 仅能看到文本日报")
+                
                 return True
             except Exception as e:
                 log_error_msg(f"向群 {group_id} 发送日报出错: {str(e)}")

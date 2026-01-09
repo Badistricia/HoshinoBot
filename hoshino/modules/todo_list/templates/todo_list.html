@@ -20,8 +20,8 @@
             align-items: flex-start;
         }
 
-        /* 便利贴容器 */
-        .sticky-note {
+        /* 便利贴容器 (为了配合截图工具，类名改为 bento-container) */
+        .bento-container {
             background: linear-gradient(135deg, #fef3bd 0%, #f9ea8f 100%); /* 渐变黄 */
             width: 380px;
             min-height: 450px;
@@ -32,6 +32,7 @@
             position: relative;
             transform: rotate(-1deg); /* 微微倾斜 */
             border-radius: 2px;
+            display: inline-block; /* 确保容器大小适应内容，而不是撑满全屏 */
         }
 
         /* 顶部胶带效果 */
@@ -178,7 +179,7 @@
     </style>
 </head>
 <body>
-    <div class="sticky-note">
+    <div class="bento-container">
         <div class="tape"></div>
         <h1>Todo List</h1>
         <div class="divider"></div>

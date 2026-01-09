@@ -106,9 +106,14 @@ async def html_to_screenshot(html_path, output_path):
             # 检查是否有自定义浏览器路径
             if CUSTOM_BROWSER_PATH and os.path.exists(CUSTOM_BROWSER_PATH):
                 log_info(f"使用自定义Chromium: {CUSTOM_BROWSER_PATH}")
-                browser = await p.chromium.launch(executable_path=CUSTOM_BROWSER_PATH)
+                browser = await p.chromium.launch(
+                    executable_path=CUSTOM_BROWSER_PATH,
+                    args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+                )
             else:
-                browser = await p.chromium.launch()
+                browser = await p.chromium.launch(
+                    args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+                )
                 
             page = await browser.new_page()
             
