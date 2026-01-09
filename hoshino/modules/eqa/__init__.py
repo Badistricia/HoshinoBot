@@ -162,7 +162,7 @@ async def ask(bot, ctx, keyword, is_me):
 
 
 # 回复的函数
-async def answer(ctx):
+async def answer(bot, ctx):
     msg = util.get_message_str(ctx['message']).strip()
     ans_list = db.get(msg, [])
     if not ans_list:
