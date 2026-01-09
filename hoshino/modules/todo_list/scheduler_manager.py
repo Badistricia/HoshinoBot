@@ -1,21 +1,29 @@
 from datetime import datetime
 from typing import Optional
-from nonebot import require, get_bot, logger
-from nonebot.adapters.onebot.v11 import Message
+import nonebot
+from nonebot import get_bot
+from hoshino import logger
 
-# Require the plugin as per instruction
+# Try to get scheduler from nonebot (Nonebot1 standard)
 try:
-    require("nonebot_plugin_apscheduler")
-    from nonebot_plugin_apscheduler import scheduler
-except Exception as e:
-    logger.error(f"Failed to import nonebot_plugin_apscheduler: {e}")
-    scheduler = None
+    from nonebot import scheduler
+except ImportError:
+    # Fallback: try to create a local scheduler if nonebot doesn't provide one
+    # This happens if HoshinoBot is not using the standard scheduler plugin
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        scheduler = AsyncIOScheduler()
+        scheduler.start()
+        logger.info("Created local AsyncIOScheduler for todo_list")
+    except ImportError:
+        logger.error("APScheduler not found. Todo reminders will not work.")
+        scheduler = None
 
 async def send_reminder(user_id: str, group_id: Optional[str], content: str):
     try:
         bot = get_bot()
         msg = f"⏰ 提醒：[CQ:at,qq={user_id}] 该去 {content} 了！"
-        # Using OneBot V11 API
+        # HoshinoBot (Nonebot1) API
         if group_id:
             await bot.send_group_msg(group_id=int(group_id), message=msg)
         else:
