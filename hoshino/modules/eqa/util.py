@@ -148,7 +148,9 @@ def delete_message_image_file(message):
 # 获取消息中字符串 处理md5值
 def get_message_str(message):
     res = ''
-    message = message if isinstance(message, MessageSegment) else Message(message)
+    # message = message if isinstance(message, MessageSegment) else Message(message)
+    # 统一转换为Message对象，避免MessageSegment作为dict被迭代以及isinstance报错问题
+    message = Message(message)
     for ms in message:
         # 处理文本
         if ms['type'] == 'text':
