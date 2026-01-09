@@ -1,4 +1,4 @@
-from nonebot.argparse import ArgumentParser
+from argparse import ArgumentParser
 from hoshino import Service, sucmd
 from hoshino.typing import CommandSession
 

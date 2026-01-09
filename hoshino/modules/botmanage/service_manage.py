@@ -1,8 +1,8 @@
 from functools import cmp_to_key
+from argparse import ArgumentParser
 
 from nonebot import CommandSession, on_command
 from nonebot import permission as perm
-from nonebot.argparse import ArgumentParser
 
 from hoshino import Service, priv, util
 

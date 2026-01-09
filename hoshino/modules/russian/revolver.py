@@ -7,7 +7,7 @@ import os
 import hoshino
 from hoshino import R, Service, priv, util
 
-bot = get_bot()
+# bot = get_bot()
 fd = os.path.dirname(__file__)
 
 with open(os.path.join(fd , 'rsdata.json')) as f:
