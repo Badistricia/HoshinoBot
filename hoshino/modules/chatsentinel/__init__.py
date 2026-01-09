@@ -73,11 +73,11 @@ async def handle_msg(bot, ev: CQEvent):
         should_run = True
         
     if should_run:
-        await execute_logic(bot, gid, inst)
+        await execute_logic(bot, gid, inst, force_reply=is_urgent)
 
 from .manager import get_instance, GroupInstance, instances
 
-async def execute_logic(bot, gid, inst: GroupInstance):
+async def execute_logic(bot, gid, inst: GroupInstance, force_reply=False):
     # Double check enabled state (in case disabled during buffer wait)
     if not inst.enabled:
         inst.guard.pop_buffer() # Clear buffer anyway
