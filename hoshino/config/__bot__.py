@@ -72,7 +72,8 @@ MODULES_ON = {
     'dailySum',
     "bilisummary",
     'aichat',
-    'chatsentinel'
+    'chatsentinel',
+    'todo_list'
 
 
 }
