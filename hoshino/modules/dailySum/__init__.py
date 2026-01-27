@@ -7,8 +7,60 @@ from nonebot import get_bot
 from .dailysum import handle_daily_report_cmd, start_scheduler, PLAYWRIGHT_AVAILABLE, init_dailysum_playwright, gemini_client, split_log_files
 from .logger_helper import log_info, log_warning, log_error_msg
 from .weekly_report import generate_weekly_report
+from datetime import datetime, timedelta
 
 sv = Service('dailysum', enable_on_default=False, help_='群聊日报功能')
+
+# 定时清理旧日志任务（每天凌晨4:00执行）
+@sv.scheduled_job('cron', hour='4', minute='0')
+async def scheduled_log_cleanup():
+    """
+    每日凌晨4点清理旧日志
+    只保留最近3天的日志文件
+    """
+    log_info("=" * 50)
+    log_info("开始执行日志清理任务")
+    
+    try:
+        # 清理 logs 目录
+        cleanup_count = 0
+        now = datetime.now()
+        cutoff_date = now - timedelta(days=3)
+        
+        if os.path.exists(LOG_DIR):
+            for filename in os.listdir(LOG_DIR):
+                file_path = os.path.join(LOG_DIR, filename)
+                
+                # 检查是否是日志文件
+                if not os.path.isfile(file_path):
+                    continue
+                    
+                # 尝试从文件名解析日期 (格式: dailysum_YYYY-MM-DD.log)
+                if filename.startswith('dailysum_') and filename.endswith('.log'):
+                    try:
+                        date_str = filename[9:-4]
+                        file_date = datetime.strptime(date_str, "%Y-%m-%d")
+                        
+                        # 如果文件日期早于截止日期，则删除
+                        if file_date.date() < cutoff_date.date():
+                            os.remove(file_path)
+                            cleanup_count += 1
+                            log_info(f"已删除过期日志: {filename}")
+                    except ValueError:
+                        # 文件名日期格式不匹配，忽略
+                        pass
+                # 也可以检查最后修改时间作为兜底
+                # elif (now - datetime.fromtimestamp(os.path.getmtime(file_path))).days > 3:
+                #    os.remove(file_path)
+                #    cleanup_count += 1
+        
+        log_info(f"日志清理完成，共删除 {cleanup_count} 个过期日志文件")
+        log_info("=" * 50)
+        
+    except Exception as e:
+        log_error_msg(f"日志清理任务出错: {str(e)}")
+        import traceback
+        log_error_msg(traceback.format_exc())
 
 # 定时切割日志任务（每天凌晨3:50执行，为4点日报做准备）
 @sv.scheduled_job('cron', hour='3', minute='50')

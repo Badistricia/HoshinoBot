@@ -198,6 +198,26 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
     
     if not video_id:
         return
+        
+# 定时清理临时视频文件（每天凌晨4:00执行）
+@sv.scheduled_job('cron', hour='4', minute='0')
+async def scheduled_temp_cleanup():
+    """每日凌晨4点清理临时视频文件"""
+    import shutil
+    try:
+        # 获取temp_videos目录路径
+        temp_dir = os.path.join(os.path.dirname(__file__), 'temp_videos')
+        
+        if os.path.exists(temp_dir):
+            # 删除整个目录并重新创建
+            shutil.rmtree(temp_dir)
+            os.makedirs(temp_dir, exist_ok=True)
+            sv.logger.info(f'已清理临时视频目录: {temp_dir}')
+            
+            # 同时也尝试清理 video_downloader.py 中可能使用的临时目录（如果有的话）
+            # 这里假设主要是 temp_videos 占用空间
+    except Exception as e:
+        sv.logger.error(f'清理临时视频目录失败: {e}')
     
     try:
         # 尝试加载cookies
