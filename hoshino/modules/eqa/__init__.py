@@ -41,7 +41,8 @@ sv = Service(
     visible=True,
     enable_on_default=True,
     bundle='通用',
-    help_=sv_help
+    help_=sv_help,
+    aliases=('eqa', '问答')
 )
 
 
