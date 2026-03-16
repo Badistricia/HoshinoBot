@@ -75,12 +75,6 @@ async def init_db():
         database=db_config.get('database', 'hoshinoBotDB')
     )
     hoshino.logger.info("eqa 数据库连接初始化成功！")
-        host=db_config.get('host', 'localhost'),
-        port=db_config.get('port', 3306),
-        user=db_config.get('user', 'root'),
-        password=db_config.get('password', ''),
-        database=db_config.get('database', 'hoshinoBotDB')
-    )
 
 
 @sv.on_message('group')
