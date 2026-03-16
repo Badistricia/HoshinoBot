@@ -6,7 +6,7 @@
 """
 import re
 import random
-from nonebot import *
+import nonebot
 from . import util
 from . import database
 
@@ -51,7 +51,7 @@ async def bangzhu(bot, ev):
 
 
 config = util.get_config()
-_bot = get_bot()
+_bot = nonebot.get_bot()
 
 admins = config['admins']
 admins = set((admins if isinstance(admins, list) else [admins]) + _bot.config.SUPERUSERS)
@@ -60,7 +60,7 @@ admins = set((admins if isinstance(admins, list) else [admins]) + _bot.config.SU
 db = None
 
 
-@on_startup
+@nonebot.on_startup
 async def init_db():
     """启动时初始化数据库"""
     global db
