@@ -65,49 +65,98 @@ db = None
 # 数据库在首次使用时由 ensure_db() 延迟初始化
 
 
+async def ensure_db():
+    """确保数据库已初始化，失败时记录详细错误"""
+    global db
+    if db is None:
+        logger.info("[eqa] DB未初始化，尝试建立连接...")
+        db_config = config.get('database', {})
+        logger.info(f"[eqa] DB配置: host={db_config.get('host','localhost')}, "
+                    f"port={db_config.get('port', 3306)}, "
+                    f"user={db_config.get('user','root')}, "
+                    f"database={db_config.get('database','hoshinoBotDB')}")
+        try:
+            db = await database.init_database(
+                host=db_config.get('host', 'localhost'),
+                port=db_config.get('port', 3306),
+                user=db_config.get('user', 'root'),
+                password=db_config.get('password', ''),
+                database=db_config.get('database', 'hoshinoBotDB')
+            )
+            logger.info("[eqa] 数据库连接初始化成功！")
+        except Exception as e:
+            logger.error(f"[eqa] 数据库连接失败: {type(e).__name__}: {e}")
+            db = None
+            raise
+    return db
+
+
 @sv.on_message('group')
 async def eqa_main(*params):
     _bot = nonebot.get_bot()
     bot, ctx = (_bot, params[0]) if len(params) == 1 else params
 
     msg = str(ctx['message']).strip()
+    group_id = ctx.get('group_id', '?')
+    user_id = ctx.get('user_id', '?')
+    logger.debug(f"[eqa] 收到消息 group={group_id} user={user_id} msg={msg!r}")
 
-    # 处理回答所有人的问题
+    # 处理设置所有人问题
     keyword = util.get_msg_keyword(config['comm']['answer_all'], msg, True)
+    logger.debug(f"[eqa] answer_all 关键词={config['comm']['answer_all']!r} 匹配结果={keyword!r}")
     if keyword:
-        result = await ask(ctx, keyword, False)
+        logger.info(f"[eqa] 触发 answer_all，keyword={keyword!r}")
+        try:
+            result = await ask(ctx, keyword, False)
+        except Exception as e:
+            logger.error(f"[eqa] ask(all) 异常: {e}", exc_info=True)
+            return
         if result:
             return await bot.send(ctx, result)
 
-    # 处理回答自己的问题
+    # 处理设置个人问题
     keyword = util.get_msg_keyword(config['comm']['answer_me'], msg, True)
+    logger.debug(f"[eqa] answer_me 关键词={config['comm']['answer_me']!r} 匹配结果={keyword!r}")
     if keyword:
-        result = await ask(ctx, keyword, True)
+        logger.info(f"[eqa] 触发 answer_me，keyword={keyword!r}")
+        try:
+            result = await ask(ctx, keyword, True)
+        except Exception as e:
+            logger.error(f"[eqa] ask(me) 异常: {e}", exc_info=True)
+            return
         if result:
             return await bot.send(ctx, result)
 
-    # 回复消息
-    ans = await answer(ctx)
+    # 回复消息（匹配问答）
+    try:
+        ans = await answer(ctx)
+    except Exception as e:
+        logger.error(f"[eqa] answer() 异常: {e}", exc_info=True)
+        return
     if isinstance(ans, list):
         return await bot.send(ctx, ans)
 
-    # 显示全部设置的问题
+    # 显示全部问题
     show_target = util.get_msg_keyword(config['comm']['show_question_list'], msg, True)
+    logger.debug(f"[eqa] show_question_list 匹配={show_target!r}")
     if isinstance(show_target, str):
         return await bot.send(ctx, await show_question(ctx, show_target, True))
 
-    # 显示设置的问题
+    # 显示个人问题
     show_target = util.get_msg_keyword(config['comm']['show_question'], msg, True)
+    logger.debug(f"[eqa] show_question 匹配={show_target!r}")
     if isinstance(show_target, str):
         return await bot.send(ctx, await show_question(ctx, show_target))
 
-    # 删除设置的问题
+    # 删除问题
     del_target = util.get_msg_keyword(config['comm']['answer_delete'], msg, True)
+    logger.debug(f"[eqa] answer_delete 匹配={del_target!r}")
     if del_target:
         return await bot.send(ctx, await del_question(ctx, del_target))
 
-    # 清空设置的问题
+    # 清空问题
     del_all = util.get_msg_keyword(config['comm']['answer_delete_all'], msg, True)
+    logger.debug(f"[eqa] answer_delete_all 匹配={del_all!r}")
     if del_all:
         return await bot.send(ctx, await del_question(ctx, del_all, True))
 
@@ -116,17 +165,22 @@ async def ask(ctx, keyword, is_me):
     """设置问题的函数"""
     is_super_admin = ctx['user_id'] in admins
     is_admin = util.is_group_admin(ctx) or is_super_admin
+    logger.debug(f"[eqa] ask() is_me={is_me} is_admin={is_admin} keyword={keyword!r}")
 
     if config['rule']['only_admin_answer_all'] and not is_me and not is_admin:
         return '回答所有人的只能管理设置啦'
 
     question_handler = config['comm']['answer_me'] if is_me else config['comm']['answer_all']
     answer_handler = config['comm']['answer_handler']
+    logger.debug(f"[eqa] ask() answer_handler={answer_handler!r}")
     qa_msg = util.get_msg_keyword(answer_handler, keyword)
+    logger.debug(f"[eqa] ask() qa_msg={qa_msg!r}")
     if not qa_msg:
+        logger.warning(f"[eqa] ask() 未能从 keyword={keyword!r} 中提取问答分割，answer_handler={answer_handler!r}")
         return False
     ans, qus = qa_msg
     qus = f'{qus}'.strip()
+    logger.info(f"[eqa] ask() 问题={qus!r} 回答={str(ans)[:50]!r}")
     if not str(qus).strip():
         return '问题呢? 问题呢??'
     if not str(ans).strip():
@@ -134,10 +188,12 @@ async def ask(ctx, keyword, is_me):
 
     # 问题与回答的分割
     ans_start = util.find_ms_str_index(ctx['message'], answer_handler)
+    logger.debug(f"[eqa] ask() ans_start={ans_start}")
 
     if re.search(r'\[CQ:image,', qus):
         qus = util.get_message_str(ctx['message'][:ans_start])
         qus = util.get_msg_keyword(question_handler, qus, True).strip()
+        logger.debug(f"[eqa] ask() 图片问题，重新提取 qus={qus!r}")
 
     message = []
     _once = False
@@ -154,38 +210,35 @@ async def ask(ctx, keyword, is_me):
                 return '图片缓存失败了啦！'
         message.append(ms)
 
+    logger.debug(f"[eqa] ask() message segments={len(message)}")
+    logger.info(f"[eqa] 准备写入DB: group={ctx['group_id']} user={ctx['user_id']} qus={qus!r}")
+
     # 使用MySQL存储
-    db = await ensure_db()
-    question_id = await db.add_question(
-        question=qus,
-        group_id=ctx['group_id'],
-        is_global=is_super_admin and not is_me
-    )
-    
-    await db.add_answer(
-        question_id=question_id,
-        user_id=ctx['user_id'],
-        group_id=ctx['group_id'],
-        is_me=is_me,
-        message=message
-    )
-    
+    try:
+        db = await ensure_db()
+        question_id = await db.add_question(
+            question=qus,
+            group_id=ctx['group_id'],
+            is_global=is_super_admin and not is_me
+        )
+        logger.info(f"[eqa] 问题已写入，question_id={question_id}")
+
+        await db.add_answer(
+            question_id=question_id,
+            user_id=ctx['user_id'],
+            group_id=ctx['group_id'],
+            is_me=is_me,
+            message=message
+        )
+        logger.info(f"[eqa] 回答已写入 question_id={question_id}")
+    except Exception as e:
+        logger.error(f"[eqa] ask() DB操作失败: {type(e).__name__}: {e}", exc_info=True)
+        return f'保存失败了啦，数据库错误: {type(e).__name__}'
+
     return '我学会啦 来问问我吧！'
 
 
-async def ensure_db():
-    """确保数据库已初始化"""
-    global db
-    if db is None:
-        db_config = config.get('database', {})
-        db = await database.init_database(
-            host=db_config.get('host', 'localhost'),
-            port=db_config.get('port', 3306),
-            user=db_config.get('user', 'root'),
-            password=db_config.get('password', ''),
-            database=db_config.get('database', 'hoshinoBotDB')
-        )
-    return db
+# ensure_db 已在上方定义，请勿重复
 
 
 async def answer(ctx):
