@@ -52,14 +52,14 @@ class Database:
     async def get_question(self, question: str, group_id: int) -> Optional[Dict]:
         """根据问题和群组ID获取问题"""
         from hoshino import logger
-        logger.debug(f"[eqa.db] get_question: question={question!r}, group_id={group_id}")
+        logger.info(f"[eqa.db] get_question: question={question!r}, group_id={group_id}")
         async with self.acquire() as cur:
             await cur.execute(
                 "SELECT * FROM eqa_questions WHERE question = %s AND group_id = %s",
                 (question, group_id)
             )
             res = await cur.fetchone()
-            logger.debug(f"[eqa.db] get_question 结果: {res}")
+            logger.info(f"[eqa.db] get_question 结果: {res}")
             return res
     
     async def get_answers(self, question_id: int, group_id: int, user_id: int = None, is_super_admin: bool = False) -> List[Dict]:
@@ -84,7 +84,7 @@ class Database:
             
             rows = await cur.fetchall()
             from hoshino import logger
-            logger.debug(f"[eqa.db] get_answers 查到 {len(rows)} 条记录")
+            logger.info(f"[eqa.db] get_answers 查到 {len(rows)} 条记录")
             for row in rows:
                 if row.get('answer_content'):
                     row['answer_content'] = json.loads(row['answer_content'])
@@ -96,19 +96,19 @@ class Database:
         from hoshino import logger
         question_data = await self.get_question(question, group_id)
         if not question_data:
-            logger.debug(f"[eqa.db] 未找到问题: {question!r} (群:{group_id})")
+            logger.info(f"[eqa.db] 未找到问题: {question!r} (群:{group_id})")
             return None
         
         answers = await self.get_answers(question_data['id'], group_id, user_id, is_super_admin)
         if not answers:
-            logger.debug(f"[eqa.db] 问题 {question_data['id']} 没有回答记录")
+            logger.info(f"[eqa.db] 问题 {question_data['id']} 没有回答记录")
             return None
         
         # 优先自己的回答
         if priority_self:
             self_answers = [a for a in answers if a['user_id'] == user_id and a['is_me']]
             if self_answers:
-                logger.debug(f"[eqa.db] 找到用户的个人优先回答")
+                logger.info(f"[eqa.db] 找到用户的个人优先回答")
                 return self_answers[0]
         
         # 过滤is_me的回答（如果不是自己的）
@@ -119,13 +119,13 @@ class Database:
             valid_answers.append(ans)
         
         if not valid_answers:
-            logger.debug(f"[eqa.db] 所有回答都被 is_me 过滤掉了")
+            logger.info(f"[eqa.db] 所有回答都被 is_me 过滤掉了")
             return None
         
         # 随机返回一个（这里可以改成按权重/使用次数）
         import random
         chosen = random.choice(valid_answers)
-        logger.debug(f"[eqa.db] 从 {len(valid_answers)} 个有效回答中随机选择了 ID: {chosen.get('id')}")
+        logger.info(f"[eqa.db] 从 {len(valid_answers)} 个有效回答中随机选择了 ID: {chosen.get('id')}")
         return chosen
     
     async def add_question(self, question: str, group_id: int, is_global: bool = False) -> int:

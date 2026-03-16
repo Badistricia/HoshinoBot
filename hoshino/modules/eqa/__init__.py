@@ -148,25 +148,25 @@ async def eqa_main(*params):
 
     # 显示全部问题
     show_target = util.get_msg_keyword(config['comm']['show_question_list'], msg, True)
-    logger.debug(f"[eqa] show_question_list 匹配={show_target!r}")
+    logger.info(f"[eqa] show_question_list 匹配={show_target!r}")
     if isinstance(show_target, str):
         return await bot.send(ctx, await show_question(ctx, show_target, True))
 
     # 显示个人问题
     show_target = util.get_msg_keyword(config['comm']['show_question'], msg, True)
-    logger.debug(f"[eqa] show_question 匹配={show_target!r}")
+    logger.info(f"[eqa] show_question 匹配={show_target!r}")
     if isinstance(show_target, str):
         return await bot.send(ctx, await show_question(ctx, show_target))
 
     # 删除问题
     del_target = util.get_msg_keyword(config['comm']['answer_delete'], msg, True)
-    logger.debug(f"[eqa] answer_delete 匹配={del_target!r}")
+    logger.info(f"[eqa] answer_delete 匹配={del_target!r}")
     if del_target:
         return await bot.send(ctx, await del_question(ctx, del_target))
 
     # 清空问题
     del_all = util.get_msg_keyword(config['comm']['answer_delete_all'], msg, True)
-    logger.debug(f"[eqa] answer_delete_all 匹配={del_all!r}")
+    logger.info(f"[eqa] answer_delete_all 匹配={del_all!r}")
     if del_all:
         return await bot.send(ctx, await del_question(ctx, del_all, True))
 
@@ -175,16 +175,16 @@ async def ask(ctx, keyword, is_me):
     """设置问题的函数"""
     is_super_admin = ctx['user_id'] in admins
     is_admin = util.is_group_admin(ctx) or is_super_admin
-    logger.debug(f"[eqa] ask() is_me={is_me} is_admin={is_admin} keyword={keyword!r}")
+    logger.info(f"[eqa] ask() is_me={is_me} is_admin={is_admin} keyword={keyword!r}")
 
     if config['rule']['only_admin_answer_all'] and not is_me and not is_admin:
         return '回答所有人的只能管理设置啦'
 
     question_handler = config['comm']['answer_me'] if is_me else config['comm']['answer_all']
     answer_handler = config['comm']['answer_handler']
-    logger.debug(f"[eqa] ask() answer_handler={answer_handler!r}")
+    logger.info(f"[eqa] ask() answer_handler={answer_handler!r}")
     qa_msg = util.get_msg_keyword(answer_handler, keyword)
-    logger.debug(f"[eqa] ask() qa_msg={qa_msg!r}")
+    logger.info(f"[eqa] ask() qa_msg={qa_msg!r}")
     if not qa_msg:
         logger.warning(f"[eqa] ask() 未能从 keyword={keyword!r} 中提取问答分割，answer_handler={answer_handler!r}")
         return False
@@ -198,12 +198,12 @@ async def ask(ctx, keyword, is_me):
 
     # 问题与回答的分割
     ans_start = util.find_ms_str_index(ctx['message'], answer_handler)
-    logger.debug(f"[eqa] ask() ans_start={ans_start}")
+    logger.info(f"[eqa] ask() ans_start={ans_start}")
 
     if re.search(r'\[CQ:image,', qus):
         qus = util.get_message_str(ctx['message'][:ans_start])
         qus = util.get_msg_keyword(question_handler, qus, True).strip()
-        logger.debug(f"[eqa] ask() 图片问题，重新提取 qus={qus!r}")
+        logger.info(f"[eqa] ask() 图片问题，重新提取 qus={qus!r}")
 
     message = []
     _once = False
@@ -220,7 +220,7 @@ async def ask(ctx, keyword, is_me):
                 return '图片缓存失败了啦！'
         message.append(ms)
 
-    logger.debug(f"[eqa] ask() message segments={len(message)}")
+    logger.info(f"[eqa] ask() message segments={len(message)}")
     logger.info(f"[eqa] 准备写入DB: group={ctx['group_id']} user={ctx['user_id']} qus={qus!r}")
 
     # 使用MySQL存储
@@ -270,7 +270,7 @@ async def answer(ctx):
     )
     
     if not ans:
-        logger.debug(f"[eqa] 未找到匹配的关键词: {msg}")
+        logger.info(f"[eqa] 未找到匹配的关键词: {msg}")
         return False
 
     logger.info(f"[eqa] 成功匹配到回答 ID: {ans['id']}")
