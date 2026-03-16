@@ -37,7 +37,7 @@ CQ码部分
 '''.strip()
 
 sv = Service(
-    name='调教',
+    name='eqa',
     use_priv=priv.NORMAL,
     manage_priv=priv.ADMIN,
     visible=True,
