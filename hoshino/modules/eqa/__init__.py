@@ -163,7 +163,7 @@ async def ask(ctx, keyword, is_me):
         message.append(ms)
 
     # 使用MySQL存储
-    global db
+    db = await ensure_db()
     question_id = await db.add_question(
         question=qus,
         group_id=ctx['group_id'],
@@ -181,11 +181,26 @@ async def ask(ctx, keyword, is_me):
     return '我学会啦 来问问我吧！'
 
 
+async def ensure_db():
+    """确保数据库已初始化"""
+    global db
+    if db is None:
+        db_config = config.get('database', {})
+        db = await database.init_database(
+            host=db_config.get('host', 'localhost'),
+            port=db_config.get('port', 3306),
+            user=db_config.get('user', 'root'),
+            password=db_config.get('password', ''),
+            database=db_config.get('database', 'hoshinoBotDB')
+        )
+    return db
+
+
 async def answer(ctx):
     """回复的函数"""
     msg = util.get_message_str(ctx['message']).strip()
     
-    global db
+    db = await ensure_db()
     is_super_admin = ctx['user_id'] in admins
     
     ans = await db.get_answer_for_user(
@@ -245,7 +260,7 @@ async def show_question(ctx, target, show_all=False):
         target = [ctx['user_id']]
         is_at = False
 
-    global db
+    db = await ensure_db()
     msg = ''
     
     for qq in target:
@@ -300,7 +315,7 @@ async def del_question(ctx, target, clear=False):
     """删除问题的函数"""
     target = util.get_message_str(target).strip()
     
-    global db
+    db = await ensure_db()
     is_super_admin = ctx['user_id'] in admins
     is_group_admin = util.is_group_admin(ctx) if config['rule']['only_admin_can_delete'] else True
     is_admin = is_group_admin or is_super_admin
