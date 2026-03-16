@@ -146,26 +146,42 @@ def delete_message_image_file(message):
 
 
 # 获取消息中字符串 处理md5值
+# 获取消息中字符串 处理md5值
 def get_message_str(message):
     res = ''
-    # message = message if isinstance(message, MessageSegment) else Message(message)
-    # 统一转换为Message对象，避免MessageSegment作为dict被迭代以及isinstance报错问题
-    message = Message(message)
-    for ms in message:
-        # 处理文本
-        if ms['type'] == 'text':
-            res += str(ms['data']['text']).strip()
-            continue
-        # 处理图片
-        if ms['type'] == 'image':
-            file = ms['data']['file']
-            try:
-                _id = re.match('{.+}', file).group()[1:-1]
-                res += _id.split('-')[-1]
-            except AttributeError:
-                res += ms['data']['file'].split('.')[0].lower()
-            continue
-        res += str(ms)
+    try:
+        if isinstance(message, str):
+            return message
+        
+        # 尝试直接通过 extract_plain_text 取纯文本 (Nonebot1 / Nonebot2兼容特性)
+        if hasattr(message, 'extract_plain_text'):
+            return message.extract_plain_text().strip()
+            
+        message = Message(message)
+        for ms in message:
+            # 处理文本
+            if ms['type'] == 'text':
+                res += str(ms['data']['text']).strip()
+                continue
+            # 处理图片
+            if ms['type'] == 'image':
+                file = ms['data'].get('file', '')
+                try:
+                    match = re.match(r'{.+}', file)
+                    if match:
+                        _id = match.group()[1:-1]
+                        res += _id.split('-')[-1]
+                    else:
+                        res += file.split('.')[0].lower()
+                except Exception:
+                    res += file.split('.')[0].lower() if file else ''
+                continue
+            res += str(ms)
+    except Exception as e:
+        from hoshino import logger
+        logger.error(f"[eqa] get_message_str 解析异常: {e}")
+        return str(message)
+        
     return res
 
 
