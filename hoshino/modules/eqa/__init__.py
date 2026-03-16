@@ -1,17 +1,17 @@
 # -*- coding: UTF-8 -*-
 """
 作者艾琳有栖
-版本 0.0.8
+版本 0.1.0 - MySQL重构版
 基于 nonebot 问答
 """
 import re
 import random
-from nonebot import Message, MessageSegment
+from nonebot import *
 from . import util
+from . import database
 
-from hoshino import Service, priv  # 如果使用hoshino的分群管理取消注释这行
+from hoshino import Service, priv
 
-#
 sv_help = '''
 - [有人/大家说AA回答BB] 对所有人生效
 - [我说AA回答BB] 仅仅对个人生效
@@ -35,54 +35,69 @@ CQ码部分
 '''.strip()
 
 sv = Service(
-    name = '调教',  #功能名
-    use_priv = priv.NORMAL, #使用权限   
-    manage_priv = priv.ADMIN, #管理权限
-    visible = True, #False隐藏
-    enable_on_default = True, #是否默认启用
-    bundle = '通用', #属于哪一类
-    help_ = sv_help #帮助文本
-    )
+    name='调教',
+    use_priv=priv.NORMAL,
+    manage_priv=priv.ADMIN,
+    visible=True,
+    enable_on_default=True,
+    bundle='通用',
+    help_=sv_help
+)
 
-    
+
 @sv.on_fullmatch(["epa进阶用法"])
 async def bangzhu(bot, ev):
     await bot.send(ev, sv_help1)
-    
-config = util.get_config()
-db = util.init_db(config['cache_dir'])
 
-# _bot = get_bot()
+
+config = util.get_config()
+_bot = get_bot()
 
 admins = config['admins']
-admins = set((admins if isinstance(admins, list) else [admins]))
+admins = set((admins if isinstance(admins, list) else [admins]) + _bot.config.SUPERUSERS)
+
+# 初始化数据库
+db = None
 
 
-@sv.on_message('group')  # 如果使用hoshino的分群管理取消注释这行 并注释下一行的 @_bot.on_message("group")
-# @_bot.on_message("group") # nonebot使用这
-async def eqa_main(bot, ctx):
+@sv.on_startup
+async def init_db():
+    """启动时初始化数据库"""
+    global db
+    db_config = config.get('database', {})
+    db = await database.init_database(
+        host=db_config.get('host', 'localhost'),
+        port=db_config.get('port', 3306),
+        user=db_config.get('user', 'root'),
+        password=db_config.get('password', ''),
+        database=db_config.get('database', 'hoshinoBotDB')
+    )
+
+
+@sv.on_message('group')
+async def eqa_main(*params):
+    bot, ctx = (_bot, params[0]) if len(params) == 1 else params
+
     msg = str(ctx['message']).strip()
 
     # 处理回答所有人的问题
     keyword = util.get_msg_keyword(config['comm']['answer_all'], msg, True)
     if keyword:
-        msg = await ask(bot, ctx, keyword, False)
-        if msg:
-            return await bot.send(ctx, msg)
+        result = await ask(ctx, keyword, False)
+        if result:
+            return await bot.send(ctx, result)
 
     # 处理回答自己的问题
     keyword = util.get_msg_keyword(config['comm']['answer_me'], msg, True)
     if keyword:
-        msg = await ask(bot, ctx, keyword, True)
-        if msg:
-            return await bot.send(ctx, msg)
+        result = await ask(ctx, keyword, True)
+        if result:
+            return await bot.send(ctx, result)
 
     # 回复消息
-    ans = await answer(bot, ctx)
+    ans = await answer(ctx)
     if isinstance(ans, list):
         return await bot.send(ctx, ans)
-    # elif isinstance(ans, str):
-    #     return ans
 
     # 显示全部设置的问题
     show_target = util.get_msg_keyword(config['comm']['show_question_list'], msg, True)
@@ -97,18 +112,17 @@ async def eqa_main(bot, ctx):
     # 删除设置的问题
     del_target = util.get_msg_keyword(config['comm']['answer_delete'], msg, True)
     if del_target:
-        return await bot.send(ctx, await del_question(bot, ctx, del_target))
+        return await bot.send(ctx, await del_question(ctx, del_target))
 
     # 清空设置的问题
     del_all = util.get_msg_keyword(config['comm']['answer_delete_all'], msg, True)
     if del_all:
-        return await bot.send(ctx, await del_question(bot, ctx, del_all, True))
+        return await bot.send(ctx, await del_question(ctx, del_all, True))
 
 
-# 设置问题的函数
-async def ask(bot, ctx, keyword, is_me):
-    all_admins = admins | bot.config.SUPERUSERS
-    is_super_admin = ctx['user_id'] in all_admins
+async def ask(ctx, keyword, is_me):
+    """设置问题的函数"""
+    is_super_admin = ctx['user_id'] in admins
     is_admin = util.is_group_admin(ctx) or is_super_admin
 
     if config['rule']['only_admin_answer_all'] and not is_me and not is_admin:
@@ -118,7 +132,6 @@ async def ask(bot, ctx, keyword, is_me):
     answer_handler = config['comm']['answer_handler']
     qa_msg = util.get_msg_keyword(answer_handler, keyword)
     if not qa_msg:
-        # return f'嗯嗯，加上{answer_handler}后再重新设置试试看吧~'
         return False
     ans, qus = qa_msg
     qus = f'{qus}'.strip()
@@ -149,109 +162,75 @@ async def ask(bot, ctx, keyword, is_me):
                 return '图片缓存失败了啦！'
         message.append(ms)
 
-    qus_list = db.get(qus, [])
-    qus_list.append({
-        'user_id': ctx['user_id'],
-        'group_id': ctx['group_id'],
-        'is_me': is_me,
-        'qus': qus,
-        'message': message
-    })
-    db[qus] = qus_list
+    # 使用MySQL存储
+    global db
+    question_id = await db.add_question(
+        question=qus,
+        group_id=ctx['group_id'],
+        is_global=is_super_admin and not is_me
+    )
+    
+    await db.add_answer(
+        question_id=question_id,
+        user_id=ctx['user_id'],
+        group_id=ctx['group_id'],
+        is_me=is_me,
+        message=message
+    )
+    
     return '我学会啦 来问问我吧！'
 
 
-# 回复的函数
-async def answer(bot, ctx):
+async def answer(ctx):
+    """回复的函数"""
     msg = util.get_message_str(ctx['message']).strip()
-    ans_list = db.get(msg, [])
-    if not ans_list:
+    
+    global db
+    is_super_admin = ctx['user_id'] in admins
+    
+    ans = await db.get_answer_for_user(
+        question=msg,
+        group_id=ctx['group_id'],
+        user_id=ctx['user_id'],
+        is_super_admin=is_super_admin and config['rule']['super_admin_is_all_group'],
+        priority_self=config['rule']['priority_self_answer']
+    )
+    
+    if not ans:
         return False
 
-    group_id = ctx['group_id']
-    user_id = ctx['user_id']
-    super_admin_is_all_group = config['rule']['super_admin_is_all_group']
-    priority_self_answer = config['rule']['priority_self_answer']
-    multiple_question_random_answer = config['rule']['multiple_question_random_answer']
-
-    # 获取到当前群的列表 判断是否来自该群 或者是否是超级管理员
-    # 超级管理员设置的是否为所有群问答
-    ans_list = util.filter_list(ans_list, lambda x: group_id == x['group_id'] or (
-            x['user_id'] in admins if super_admin_is_all_group else False))
-
-    # 木有在这群
-    if not ans_list:
+    # 判断是否是自己设置的回复
+    if ans['is_me'] and ans['user_id'] != ctx['user_id']:
         return False
 
-    # 是否优先自己的回答 是的话则选择自己的列表
-    if priority_self_answer:
-        self_list = util.filter_list(ans_list, lambda x: user_id == x['user_id'])
-        ans_list = self_list if self_list else ans_list
-
-    # 判断规则是否随机
-    if multiple_question_random_answer:
-        # 随机选个
-        ans = random.choice(ans_list)
-    else:
-        # 否则选最后一个
-        ans = ans_list[-1]
-
-    # 判断是否是设置为自己的回复
-    if ans['is_me']:
-        # 如果是自己的回复 但是人不对就返回
-        if ans['user_id'] != user_id:
-            return False
-
-    msg = ans['message']
-    if len(msg) == 1:  # str(Message(msg))
-        _msg = msg[0]
+    msg_content = ans['answer_content']
+    
+    # 处理命令前缀
+    if len(msg_content) == 1:
+        _msg = msg_content[0]
         if _msg['type'] == 'text' and _msg['data']['text'][:1] == config['str']['cmd_head_str']:
             ctx['raw_message'] = _msg['data']['text'][1:]
             ctx['message'] = Message(ctx['raw_message'])
-            # _bot.on_message(ctx) # Nonebot1 doesn't have on_message on bot instance usually, using nonebot.message.handle_message?
-            # Or maybe just execute the command?
-            # Hoshino usually handles this via recursion or just ignoring it if it's complicated.
-            # But the original code was _bot.on_message(ctx).
-            # If _bot was nonebot.get_bot(), this implies standard Nonebot1 bot object has on_message?
-            # No, it doesn't. This might be a custom hack or this code was never working properly/legacy.
-            # However, to be safe and avoid _bot NameError, we use bot.
-            # bot.on_message(ctx) 
-            # If bot object doesn't have on_message, this will crash at runtime, but at least import is fine.
-            # Let's try to find if there is a known way.
-            # In Nonebot1, handle_message is in nonebot.message.
-            # from nonebot.message import handle_message; await handle_message(bot, ctx)
-            # But ctx is event.
-            try:
-                import nonebot.message
-                await nonebot.message.handle_message(bot, ctx)
-            except:
-                pass
+            _bot.on_message(ctx)
             return False
 
     # 如果使用了base64 那么需要把信息里的图片转换一下
     if config['image_base64']:
-        ans['message'] = util.message_image2base64(ans['message'])
+        msg_content = util.message_image2base64(msg_content)
 
-    # 最后就是把验证成功的消息返回去
-    return msg
+    return msg_content
 
 
-# 显示问题的函数
-async def show_question(bot, ctx, target, show_all=False):
+async def show_question(ctx, target, show_all=False):
+    """显示问题的函数"""
     print_all_split = config['str']['print_all_split'] or " | "
 
-    db_list = list(db.values())
-    # 获取当前群设置的问题列表
-    ans_list = util.get_current_ans_list(ctx, db_list)
-    
-    all_admins = admins | bot.config.SUPERUSERS
+    is_super_admin = ctx['user_id'] in admins
+    is_admin = util.is_group_admin(ctx) or is_super_admin
+    group_id = ctx['group_id']
 
     if not show_all:
         # 如果只显示个人
-        is_super_admin = ctx['user_id'] in all_admins
-        is_admin = util.is_group_admin(ctx) or is_super_admin
-
-        # 如果跟了@人的对象
         target = list(int(i) for i in re.findall(r'\[CQ:at,qq=(\d+)]', target.strip()))
         is_at = bool(target)
 
@@ -266,104 +245,88 @@ async def show_question(bot, ctx, target, show_all=False):
         target = [ctx['user_id']]
         is_at = False
 
+    global db
     msg = ''
+    
     for qq in target:
         head = ''
-        priority_list = []
-        if not show_all:  # 不是显示全部的话就筛选个人
-            # 获取当前qq设置问题列表
-            if qq in all_admins:
-                ans_list = util.get_all_ans_list_by_qq(qq, db_list)
-            else:
-                ans_list = util.get_all_ans_list_by_qq(qq, ans_list)
-
-        else:
-            # 这是所有人的问答
-            all_list = util.filter_list(ans_list, lambda x: True in list(not i['is_me'] for i in x))
-            # 这人个人问答
-            priority_list = util.filter_list(ans_list, lambda x: True in list(i['is_me'] for i in x))
-
-            ans_list = sum(list(util.get_all_ans_list_by_qq(q, db_list) for q in all_admins), all_list)
-
-        # 如果是多个人 那就加个名字区别一下
+        
         if is_at:
-            name = await util.get_group_member_name(ctx['group_id'], qq)
+            name = await util.get_group_member_name(group_id, qq)
             head = f'{name} :\n'
 
-        str_list = util.get_qus_str_by_list(ans_list)
-        str_list = await util.cq_msg2str(str_list, group_id=ctx['group_id'])
-        # 把问题都打印出来
-        msg_context = f'全体问答:\n{print_all_split.join(str_list)}' if show_all else "\n".join(str_list)
+        # 获取问答列表
+        answers = await db.get_question_answers_by_user(
+            group_id=group_id,
+            user_id=qq if not show_all else None,
+            is_super_admin=is_super_admin
+        )
+        
+        if not answers:
+            msg += f"{head}还没有设置过问题呢\n"
+            continue
 
-        priority_msg = ''
+        # 分类显示
+        all_questions = []
+        personal_questions = []
+        
+        for ans in answers:
+            q_text = ans['question']
+            if ans['is_me']:
+                personal_questions.append(q_text)
+            else:
+                all_questions.append(q_text)
+        
+        # 去重
+        all_questions = list(set(all_questions))
+        personal_questions = list(set(personal_questions))
+        
+        # 转换CQ码
+        all_questions = await util.cq_msg2str(all_questions, group_id=group_id)
+        personal_questions = await util.cq_msg2str(personal_questions, group_id=group_id)
+
         if show_all:
-            pri_str_list = util.get_qus_str_by_list(priority_list)
-            pri_str_list = await util.cq_msg2str(pri_str_list, group_id=ctx['group_id'])
-            priority_msg = "\n个人问答:\n" + print_all_split.join(pri_str_list)
+            msg_context = f'全体问答:\n{print_all_split.join(all_questions)}' if all_questions else '无'
+            priority_msg = f"\n个人问答:\n{print_all_split.join(personal_questions)}" if personal_questions else ''
+            msg = f"{msg}{head}{msg_context}{priority_msg}\n"
+        else:
+            all_q = all_questions + personal_questions
+            msg = f"{msg}{head}{chr(10).join(all_q)}\n"
 
-        msg = "{}{}{}{}\n".format(msg, head, msg_context if ans_list else f'还没有设置过问题呢', priority_msg)
     return msg
 
 
-# 删除问题的函数
-async def del_question(bot, ctx, target, clear=False):
+async def del_question(ctx, target, clear=False):
+    """删除问题的函数"""
     target = util.get_message_str(target).strip()
-    ans_list = db.get(target, [])
-    if not ans_list:
-        return '没这个问题哦'
     
-    all_admins = admins | bot.config.SUPERUSERS
-
-    is_super_admin = ctx['user_id'] in all_admins
+    global db
+    is_super_admin = ctx['user_id'] in admins
     is_group_admin = util.is_group_admin(ctx) if config['rule']['only_admin_can_delete'] else True
     is_admin = is_group_admin or is_super_admin
 
     # 如果直接清空
     if clear:
         if is_super_admin:
-            util.delete_message_image_file(ans_list)
-            db.pop(target)
-            return '清空成功~'
-        else:
-            return '木有权限啦~~'
+            # 获取问题ID
+            question = await db.get_question(target, ctx['group_id'])
+            if question:
+                await db.delete_question(question['id'])
+                return '清空成功~'
+        return '木有权限啦~~'
 
-    if config['rule']['question_del_last']:
-        ans_list.reverse()
-
-    is_del_flag = False
-
-    for index, value in enumerate(ans_list):
-        # 如果不是本群就跳过  或者 是超级管理员的话 就继续删除
-        if value['group_id'] != ctx['group_id'] and not (is_super_admin and value['user_id'] in all_admins):
-            continue
-        # 管理员则直接删除第一个元素
-        if is_admin:
-            if not config['rule']['can_delete_super_admin_qa'] and \
-                    value['user_id'] in all_admins and \
-                    not is_super_admin:
-                # 不允许删除超级管理员的设置
-                continue
-            else:
-                is_del_flag = True
-                util.delete_message_image_file(value)
-                ans_list.pop(index)
-                break
-        else:
-            # 如果不是管理员 就删除自己的第一个元素
-            if value['user_id'] == ctx['user_id']:
-                is_del_flag = True
-                util.delete_message_image_file(value)
-                ans_list.pop(index)
-                break
-
-    # 表示删除了元素 可以更新数据库了
-    if is_del_flag:
-        # 如果刚刚反转了 那要反转回来
-        if config['rule']['question_del_last']:
-            ans_list.reverse()
-        if bool(ans_list):
-            db[target] = ans_list
-        else:
-            db.pop(target)
-
-    return '删除成功啦' if is_del_flag else '删除失败 可能木有权限'
+    # 查找要删除的回答
+    answer_id = await db.find_answer_to_delete(
+        question=target,
+        group_id=ctx['group_id'],
+        user_id=ctx['user_id'],
+        is_admin=is_admin,
+        is_super_admin=is_super_admin,
+        can_delete_super=config['rule']['can_delete_super_admin_qa']
+    )
+    
+    if answer_id:
+        await db.delete_answer(answer_id)
+        return '删除成功啦'
+    
+    return '删除失败 可能木有权限'
