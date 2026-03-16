@@ -55,7 +55,7 @@ class Database:
         logger.info(f"[eqa.db] get_question: question={question!r}, group_id={group_id}")
         async with self.acquire() as cur:
             await cur.execute(
-                "SELECT * FROM eqa_questions WHERE question = %s AND group_id = %s",
+                "SELECT * FROM eqa_questions WHERE question = %s AND (group_id = %s OR is_global = 1)",
                 (question, group_id)
             )
             res = await cur.fetchone()
@@ -77,7 +77,8 @@ class Database:
                 # 普通用户只能看到本群的回答
                 sql = """
                     SELECT a.* FROM eqa_answers a
-                    WHERE a.question_id = %s AND (a.group_id = %s OR a.is_me = 0)
+                    JOIN eqa_questions q ON a.question_id = q.id
+                    WHERE a.question_id = %s AND (a.group_id = %s OR a.is_me = 0 OR q.is_global = 1)
                     ORDER BY a.priority DESC, a.id DESC
                 """
                 await cur.execute(sql, (question_id, group_id))
