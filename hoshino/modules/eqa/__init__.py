@@ -65,8 +65,16 @@ db = None
 async def init_db():
     """启动时初始化数据库"""
     global db
+    hoshino.logger.info("正在初始化 eqa 数据库连接...")
     db_config = config.get('database', {})
     db = await database.init_database(
+        host=db_config.get('host', 'localhost'),
+        port=db_config.get('port', 3306),
+        user=db_config.get('user', 'root'),
+        password=db_config.get('password', ''),
+        database=db_config.get('database', 'hoshinoBotDB')
+    )
+    hoshino.logger.info("eqa 数据库连接初始化成功！")
         host=db_config.get('host', 'localhost'),
         port=db_config.get('port', 3306),
         user=db_config.get('user', 'root'),
@@ -201,6 +209,8 @@ async def answer(ctx):
     """回复的函数"""
     msg = util.get_message_str(ctx['message']).strip()
     
+    hoshino.logger.debug(f"[eqa] 正在为群 {ctx['group_id']} 匹配关键词: {msg}")
+
     db = await ensure_db()
     is_super_admin = ctx['user_id'] in admins
     
@@ -213,7 +223,10 @@ async def answer(ctx):
     )
     
     if not ans:
+        hoshino.logger.debug(f"[eqa] 未找到匹配的关键词: {msg}")
         return False
+
+    hoshino.logger.info(f"[eqa] 成功匹配到回答 ID: {ans['id']}")
 
     # 判断是否是自己设置的回复
     if ans['is_me'] and ans['user_id'] != ctx['user_id']:
