@@ -7,10 +7,12 @@
 import re
 import random
 import nonebot
+from nonebot.message import Message, MessageSegment
 from . import util
 from . import database
 
-from hoshino import Service, priv
+import hoshino
+from hoshino import Service, priv, logger
 
 sv_help = '''
 - [有人/大家说AA回答BB] 对所有人生效
@@ -41,8 +43,7 @@ sv = Service(
     visible=True,
     enable_on_default=True,
     bundle='通用',
-    help_=sv_help,
-    aliases=('eqa', '问答')
+    help_=sv_help
 )
 
 
@@ -52,33 +53,21 @@ async def bangzhu(bot, ev):
 
 
 config = util.get_config()
-_bot = nonebot.get_bot()
 
 admins = config['admins']
-admins = set((admins if isinstance(admins, list) else [admins]) + _bot.config.SUPERUSERS)
+_superusers = hoshino.config.SUPERUSERS if hasattr(hoshino, 'config') else []
+admins = set((admins if isinstance(admins, list) else [admins]) + list(_superusers))
 
 # 初始化数据库
 db = None
 
 
-@nonebot.on_startup
-async def init_db():
-    """启动时初始化数据库"""
-    global db
-    hoshino.logger.info("正在初始化 eqa 数据库连接...")
-    db_config = config.get('database', {})
-    db = await database.init_database(
-        host=db_config.get('host', 'localhost'),
-        port=db_config.get('port', 3306),
-        user=db_config.get('user', 'root'),
-        password=db_config.get('password', ''),
-        database=db_config.get('database', 'hoshinoBotDB')
-    )
-    hoshino.logger.info("eqa 数据库连接初始化成功！")
+# 数据库在首次使用时由 ensure_db() 延迟初始化
 
 
 @sv.on_message('group')
 async def eqa_main(*params):
+    _bot = nonebot.get_bot()
     bot, ctx = (_bot, params[0]) if len(params) == 1 else params
 
     msg = str(ctx['message']).strip()
@@ -203,7 +192,7 @@ async def answer(ctx):
     """回复的函数"""
     msg = util.get_message_str(ctx['message']).strip()
     
-    hoshino.logger.debug(f"[eqa] 正在为群 {ctx['group_id']} 匹配关键词: {msg}")
+    logger.debug(f"[eqa] 正在为群 {ctx['group_id']} 匹配关键词: {msg}")
 
     db = await ensure_db()
     is_super_admin = ctx['user_id'] in admins
@@ -217,10 +206,10 @@ async def answer(ctx):
     )
     
     if not ans:
-        hoshino.logger.debug(f"[eqa] 未找到匹配的关键词: {msg}")
+        logger.debug(f"[eqa] 未找到匹配的关键词: {msg}")
         return False
 
-    hoshino.logger.info(f"[eqa] 成功匹配到回答 ID: {ans['id']}")
+    logger.info(f"[eqa] 成功匹配到回答 ID: {ans['id']}")
 
     # 判断是否是自己设置的回复
     if ans['is_me'] and ans['user_id'] != ctx['user_id']:
@@ -234,7 +223,7 @@ async def answer(ctx):
         if _msg['type'] == 'text' and _msg['data']['text'][:1] == config['str']['cmd_head_str']:
             ctx['raw_message'] = _msg['data']['text'][1:]
             ctx['message'] = Message(ctx['raw_message'])
-            _bot.on_message(ctx)
+            nonebot.get_bot().on_message(ctx)
             return False
 
     # 如果使用了base64 那么需要把信息里的图片转换一下
