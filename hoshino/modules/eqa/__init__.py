@@ -84,6 +84,18 @@ async def ensure_db():
                 database=db_config.get('database', 'hoshinoBotDB')
             )
             logger.info("[eqa] 数据库连接初始化成功！")
+            # 验证：打印 eqa_questions 表里的记录数
+            try:
+                async with db._pool.acquire() as _conn:
+                    async with _conn.cursor() as _cur:
+                        await _cur.execute("SELECT COUNT(*) as cnt FROM eqa_questions")
+                        row = await _cur.fetchone()
+                        logger.info(f"[eqa] eqa_questions 表共有 {row[0]} 条问题")
+                        await _cur.execute("SELECT COUNT(*) as cnt FROM eqa_answers")
+                        row2 = await _cur.fetchone()
+                        logger.info(f"[eqa] eqa_answers 表共有 {row2[0]} 条回答")
+            except Exception as e2:
+                logger.warning(f"[eqa] 验证计数失败：{e2}")
         except Exception as e:
             logger.error(f"[eqa] 数据库连接失败: {type(e).__name__}: {e}")
             db = None
@@ -99,11 +111,10 @@ async def eqa_main(*params):
     msg = str(ctx['message']).strip()
     group_id = ctx.get('group_id', '?')
     user_id = ctx.get('user_id', '?')
-    logger.debug(f"[eqa] 收到消息 group={group_id} user={user_id} msg={msg!r}")
+    logger.info(f"[eqa] 收到消息 group={group_id} user={user_id} msg={msg!r}")
 
     # 处理设置所有人问题
     keyword = util.get_msg_keyword(config['comm']['answer_all'], msg, True)
-    logger.debug(f"[eqa] answer_all 关键词={config['comm']['answer_all']!r} 匹配结果={keyword!r}")
     if keyword:
         logger.info(f"[eqa] 触发 answer_all，keyword={keyword!r}")
         try:
@@ -116,7 +127,6 @@ async def eqa_main(*params):
 
     # 处理设置个人问题
     keyword = util.get_msg_keyword(config['comm']['answer_me'], msg, True)
-    logger.debug(f"[eqa] answer_me 关键词={config['comm']['answer_me']!r} 匹配结果={keyword!r}")
     if keyword:
         logger.info(f"[eqa] 触发 answer_me，keyword={keyword!r}")
         try:
@@ -244,8 +254,9 @@ async def ask(ctx, keyword, is_me):
 async def answer(ctx):
     """回复的函数"""
     msg = util.get_message_str(ctx['message']).strip()
-    
-    logger.debug(f"[eqa] 正在为群 {ctx['group_id']} 匹配关键词: {msg}")
+    group_id = ctx.get('group_id', '?')
+    user_id = ctx.get('user_id', '?')
+    logger.info(f"[eqa] answer() 开始精确匹配 group={group_id} user={user_id} question={msg!r}")
 
     db = await ensure_db()
     is_super_admin = ctx['user_id'] in admins
