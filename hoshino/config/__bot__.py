@@ -79,7 +79,6 @@ MODULES_ON = {
     'whattoeat',
     'fucking_crazy_thursday',
 
-    #'daxuexi_HoshinoBot',
     #'travelpolicy_HoshinoBot', #出行政策
     'pcr_calculator_plus',
     'dailynews',

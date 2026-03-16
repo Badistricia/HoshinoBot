@@ -232,8 +232,8 @@ async def resolve_short_url(url):
         print(f"[短链接解析] 解析短链接出错: {e}")
         return url
 
-def extract_video_id(url):
-    """从B站URL中提取视频ID"""
+def extract_video_id_sync(url):
+    """从B站URL中提取视频ID（同步版本，已废弃，请使用异步版本）"""
     if not url:
         return None
     
@@ -241,6 +241,7 @@ def extract_video_id(url):
         # 清理URL，移除多余的引号和空格
         url = url.strip().strip('"\'')
         
+        print(f"[提取视频ID] 警告：使用了同步版本的extract_video_id_sync，请改用异步版本")
         print(f"[提取视频ID] 原始URL: {url}")
         
         # 处理BV号 - 修正正则表达式以匹配完整BV号
@@ -296,7 +297,7 @@ def extract_video_id(url):
         print(f"[提取视频ID] 错误详情: {traceback.format_exc()}")
         return None
 
-async def extract_video_id_async(url):
+async def extract_video_id(url):
     """异步版本的视频ID提取，支持短链接解析"""
     if not url:
         return None
@@ -305,26 +306,70 @@ async def extract_video_id_async(url):
         # 清理URL，移除多余的引号和空格
         url = url.strip().strip('"\'')
         
-        print(f"[异步提取视频ID] 原始URL: {url}")
+        print(f"[提取视频ID] 原始URL: {url}")
         
         # 检查是否为B站短链接
         if 'b23.tv' in url or 'bili2233.cn' in url:
-            print(f"[异步提取视频ID] 检测到短链接，开始解析...")
+            print(f"[提取视频ID] 检测到短链接，开始解析...")
             resolved_url = await resolve_short_url(url)
             if resolved_url and resolved_url != url:
-                print(f"[异步提取视频ID] 短链接解析成功: {resolved_url}")
-                # 递归调用同步版本处理解析后的URL
-                return extract_video_id(resolved_url)
+                print(f"[提取视频ID] 短链接解析成功: {resolved_url}")
+                # 递归调用自身处理解析后的URL，但避免无限递归
+                if 'b23.tv' not in resolved_url and 'bili2233.cn' not in resolved_url:
+                    return await extract_video_id(resolved_url)
+                else:
+                    print(f"[提取视频ID] 警告: 解析后仍然是短链接，尝试直接提取")
             else:
-                print(f"[异步提取视频ID] 短链接解析失败，尝试直接提取")
+                print(f"[提取视频ID] 短链接解析失败，尝试直接提取")
         
-        # 如果不是短链接或解析失败，使用同步版本处理
-        return extract_video_id(url)
+        # 尝试从URL中提取BV号或AV号
+        # BV号格式: BV开头的10-12位字符
+        bv_match = re.search(r'BV([a-zA-Z0-9]{10,12})', url)
+        if bv_match:
+            bvid = f"BV{bv_match.group(1)}"
+            print(f"[提取视频ID] 成功提取BV号: {bvid}")
+            return bvid
         
+        # AV号格式: av+数字 或 AV+数字
+        av_match = re.search(r'[aA][vV](\d+)', url)
+        if av_match:
+            aid = f"av{av_match.group(1)}"
+            print(f"[提取视频ID] 成功提取AV号: {aid}")
+            return aid
+        
+        # 尝试从URL参数中提取
+        try:
+            parsed_url = urllib.parse.urlparse(url)
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            
+            # 检查URL参数中是否有bvid或aid
+            if 'bvid' in query_params:
+                bvid = query_params['bvid'][0]
+                print(f"[提取视频ID] 从URL参数提取BV号: {bvid}")
+                return bvid
+            elif 'aid' in query_params:
+                aid = f"av{query_params['aid'][0]}"
+                print(f"[提取视频ID] 从URL参数提取AV号: {aid}")
+                return aid
+        except Exception as e:
+            print(f"[提取视频ID] 解析URL参数出错: {e}")
+        
+        # 尝试从路径中提取
+        path_parts = parsed_url.path.split('/')
+        for part in path_parts:
+            if part.startswith('BV'):
+                print(f"[提取视频ID] 从路径提取BV号: {part}")
+                return part
+            elif part.startswith('av'):
+                print(f"[提取视频ID] 从路径提取AV号: {part}")
+                return part
+        
+        print(f"[提取视频ID] 无法从URL提取视频ID: {url}")
+        return None
     except Exception as e:
-        print(f"[异步提取视频ID] 异步提取视频ID出错: {e}")
-        print(f"[异步提取视频ID] 问题URL: {url}")
-        print(f"[异步提取视频ID] 错误详情: {traceback.format_exc()}")
+        print(f"[提取视频ID] 提取视频ID出错: {e}")
+        print(f"[提取视频ID] 问题URL: {url}")
+        print(f"[提取视频ID] 错误详情: {traceback.format_exc()}")
         return None
 
 async def get_video_info(video_id, cookies=None):
@@ -370,6 +415,17 @@ async def get_video_info(video_id, cookies=None):
 async def get_video_subtitle(video_id, cookies=None):
     """获取B站视频字幕"""
     try:
+        # 如果传入的是URL而不是视频ID，先提取视频ID
+        if video_id and ('http' in video_id or 'b23.tv' in video_id):
+            print(f"[字幕] 检测到URL，尝试提取视频ID: {video_id}")
+            extracted_id = await extract_video_id_async(video_id)
+            if extracted_id:
+                video_id = extracted_id
+                print(f"[字幕] 成功从URL提取视频ID: {video_id}")
+            else:
+                print(f"[字幕] 无法从URL提取视频ID: {video_id}")
+                return None
+                
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Referer': 'https://www.bilibili.com'
@@ -517,7 +573,7 @@ async def get_video_subtitle(video_id, cookies=None):
 # 测试函数
 async def test_api(video_url, use_login=False):
     """测试API功能"""
-    video_id = extract_video_id(video_url)
+    video_id = await extract_video_id(video_url)
     if not video_id:
         return "无法提取视频ID"
     
