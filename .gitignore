@@ -15,6 +15,7 @@ imgs/
 image/
 images/
 .idea/
+*.yaml
 
 
 # 非公开的组件

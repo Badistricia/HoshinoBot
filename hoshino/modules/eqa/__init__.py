@@ -6,7 +6,7 @@
 """
 import re
 import random
-from nonebot import *
+from nonebot import *, on_startup
 from . import util
 from . import database
 
@@ -60,7 +60,7 @@ admins = set((admins if isinstance(admins, list) else [admins]) + _bot.config.SU
 db = None
 
 
-@sv.on_startup
+@on_startup
 async def init_db():
     """启动时初始化数据库"""
     global db
