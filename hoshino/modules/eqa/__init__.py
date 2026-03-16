@@ -6,7 +6,7 @@
 """
 import re
 import random
-from nonebot import *, on_startup
+from nonebot import *
 from . import util
 from . import database
 
