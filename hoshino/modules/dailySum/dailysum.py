@@ -350,16 +350,16 @@ os.makedirs(LOG_DIR, exist_ok=True)
 
 LOG_PATTERN = r'\[(.*?) nonebot\] INFO: Self: (.*?), Message (.*?) from (.*?)@\[群:(.*?)\]: \'(.*?)\'$'
 
-# 深度学习客户端
-class DeepSeekClient:
+# MiniMax AI 客户端
+class MiniMaxClient:
     def __init__(self, api_key):
         self.api_key = api_key
-        self.base_url = "https://api.deepseek.com/v1/chat/completions"
+        self.base_url = "https://api.minimax.chat/v1/text/chatcompletion_v2"
         self.headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
-        log_info(f"DeepSeekClient 初始化完成，API Key: {'已设置' if api_key else '未设置'}")
+        log_info(f"MiniMaxClient 初始化完成，API Key: {'已设置' if api_key else '未设置'}")
         
     async def generate(self, prompt, model=AI_MODEL, temperature=AI_TEMPERATURE, max_retries=3, timeout=120.0):
         log_info(f"开始生成AI摘要，模型: {model}, 温度: {temperature}")
@@ -379,18 +379,33 @@ class DeepSeekClient:
                         headers=self.headers,
                         json={
                             "model": model,
-                            "messages": [{"role": "user", "content": prompt}],
-                            "temperature": temperature
+                            "tokens_to_generate": 4096,
+                            "messages": [{"role": "user", "content": prompt}]
                         },
                         timeout=timeout
                     )
                 
                 if response.status_code == 200:
                     result = response.json()
-                    content = result["choices"][0]["message"]["content"]
-                    log_info(f"AI生成成功，生成内容长度: {len(content)}")
-                    log_debug(f"生成内容前100字符: {content[:100]}...")
-                    return content
+                    log_warning(f"MiniMax API 完整响应: {result}")
+                    # MiniMax API 响应格式: result.choices[0].text
+                    if result.get("choices") and len(result["choices"]) > 0:
+                        choice = result["choices"][0]
+                        log_warning(f"Choice 内容: {choice}")
+                        if "text" in choice:
+                            content = choice["text"]
+                        elif "message" in choice:
+                            content = choice["message"].get("content", "")
+                        else:
+                            log_error_msg(f"Choice 格式未知: {choice}")
+                            content = None
+                        if content:
+                            log_info(f"AI生成成功，生成内容长度: {len(content)}")
+                            log_debug(f"生成内容前100字符: {content[:100]}...")
+                            return content
+                    else:
+                        log_error_msg(f"MiniMax API 响应中没有 choices: {result}")
+                        return None
                 elif response.status_code == 400:
                     # 如果是请求过大的错误，尝试减少输入长度
                     log_warning(f"请求数据过大 (状态码: {response.status_code})，尝试减少输入大小")
@@ -407,7 +422,7 @@ class DeepSeekClient:
                         log_error_msg("无法裁剪提示词，格式不符合预期")
                         return None
                 else:
-                    log_error_msg(f"DeepSeek API调用失败: {response.status_code} {response.text}")
+                    log_error_msg(f"MiniMax API调用失败: {response.status_code} {response.text}")
                     # 如果不是400错误，可能是其他API问题，尝试重试
                     retry_count += 1
                     await asyncio.sleep(2)  # 等待2秒再重试
@@ -416,7 +431,7 @@ class DeepSeekClient:
                 retry_count += 1
                 await asyncio.sleep(2)  # 等待2秒再重试
             except Exception as e:
-                log_error_msg(f"DeepSeek API调用出错: {str(e)}")
+                log_error_msg(f"MiniMax API调用出错: {str(e)}")
                 log_error_msg(traceback.format_exc())
                 retry_count += 1
                 await asyncio.sleep(2)  # 等待2秒再重试
@@ -425,7 +440,7 @@ class DeepSeekClient:
         return None
 
 # AI客户端实例
-ai_client = DeepSeekClient(AI_API_KEY)
+ai_client = MiniMaxClient(MINIMAX_API_KEY)
 
 # 从系统日志获取群聊消息
 @logged
@@ -893,8 +908,8 @@ async def generate_summary(group_id, date_str):
         log_debug(f"聊天记录前200字符: {chat_log[:200]}...")
         
         # 检查API Key
-        if not AI_API_KEY:
-            log_error_msg("DeepSeek API Key未设置，无法生成摘要")
+        if not MINIMAX_API_KEY:
+            log_error_msg("MiniMax API Key未设置，无法生成摘要")
             return None
         
         # 构建提示词

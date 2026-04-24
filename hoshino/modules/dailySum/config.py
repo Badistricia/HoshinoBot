@@ -1,12 +1,7 @@
 import os
 
-try:
-    from hoshino.log import _info_log_file
-    # 自动获取HoshinoBot的日志文件路径
-    LOG_PATH = os.path.abspath(_info_log_file)
-except ImportError:
-    # 兜底方案，如果获取失败则需要手动指定
-    LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'run.log')  # 指向项目根目录的run.log文件
+# 实际日志路径
+LOG_PATH = "/home/ubuntu/XCW/Hoshino/bot.log"
 
 # 基本配置
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -18,8 +13,8 @@ SUMMARY_MINUTE = 30  # 每天几分发送日报
 SUMMARY_START_HOUR = 4  # 统计时间段的起始小时（例如：4点到次日4点）
 
 # AI配置
-AI_API_KEY = "sk-476330950dd24ff6869b6a301930f275"  # DeepSeek API密钥
-AI_MODEL = "deepseek-chat"  # AI模型名称
+MINIMAX_API_KEY="sk-cp-0jZBV7177JUvcWBIcxylXJYKysjc3uWZxyq5d-a6gmkSq85oc0VnQi02zMb2BYKLZQARVlAS_sP6eFol1HP-kUDGageadlNL9XPQTpRouJd_z3Q-yFXpAxQ"  # MiniMax API密钥
+AI_MODEL = "minimax-m2.7"  # AI模型名称
 AI_TEMPERATURE = 1.0  # AI生成温度
 
 # Gemini配置（用于周报等需要直接生成HTML的场景）
