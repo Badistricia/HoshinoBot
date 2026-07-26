@@ -102,16 +102,6 @@ def extract_miniprogram_bilibili_url(msg):
     
     return None
 
-def format_number(num):
-    """格式化展示数字。"""
-    try:
-        num = int(num or 0)
-    except (TypeError, ValueError):
-        return '0'
-    if num >= 10000:
-        return f"{num/10000:.1f}万"
-    return str(num)
-
 def format_duration(duration):
     """把秒数转换为时长文本。"""
     duration = int(duration or 0)
@@ -124,11 +114,13 @@ def format_duration(duration):
     return f"{minutes}:{seconds:02d}"
 
 async def send_hot_comments_image(bot, ev: CQEvent, video_info, cookies):
-    """获取并发送热门评论图片。"""
+    """获取并发送视频信息和热门评论图片。"""
     if not getattr(config, 'ENABLE_HOT_COMMENTS', True):
         return
 
     try:
+        comments = []
+        comment_status = ''
         result = await get_video_hot_comments(
             video_info,
             cookies=cookies,
@@ -136,15 +128,15 @@ async def send_hot_comments_image(bot, ev: CQEvent, video_info, cookies):
         )
         if not result.get('ok'):
             sv.logger.info(f"热门评论获取失败: {result.get('message')}")
-            if not getattr(config, 'HOT_COMMENTS_FAIL_SILENTLY', True):
-                await bot.send(ev, f"热门评论获取失败: {result.get('message')}")
-            return
+            comment_status = result.get('message') or '评论暂不可用'
+        else:
+            comments = result.get('comments') or []
 
-        image_path = await render_hot_comments_image(video_info, result.get('comments') or [])
+        image_path = await render_hot_comments_image(video_info, comments, comment_status=comment_status)
         if not image_path:
-            sv.logger.warning("热门评论图片生成失败")
+            sv.logger.warning("视频信息评论图片生成失败")
             if not getattr(config, 'HOT_COMMENTS_FAIL_SILENTLY', True):
-                await bot.send(ev, "热门评论图片生成失败")
+                await bot.send(ev, "视频信息图片生成失败")
             return
 
         image_uri = image_path.replace(os.sep, '/')
@@ -261,38 +253,11 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
             await bot.send(ev, '获取视频信息失败，可能需要重新登录B站账号')
             return
 
-        # 获取视频基本信息
         title = video_info.get('title', '未知标题')
-        author = video_info.get('owner', {}).get('name', '未知UP主')
         duration = video_info.get('duration', 0)
-        desc = video_info.get('desc', '')[:50] + '...' if len(video_info.get('desc', '')) > 50 else video_info.get('desc', '')
-        bvid = video_info.get('bvid', '')
-        video_url = f"https://www.bilibili.com/video/{bvid}"
-
-        # 获取统计信息
-        stat = video_info.get('stat', {})
-        view = stat.get('view', 0)
-        like = stat.get('like', 0)
-        danmaku = stat.get('danmaku', 0)
-
-        # 获取视频分区信息
-        tname = video_info.get('tname', '未知分区')
-
-        # 构建视频基本信息文本（不包含AI摘要）
         duration_str = format_duration(duration)
-        response = f"📺 {title}\n"
-        response += f"👤 UP主: {author}\n"
-        response += f"📂 分区: {tname}\n"
-        response += f"⏱️ 时长: {duration_str}\n"
-        response += f"👀 播放: {format_number(view)} | 👍 点赞: {format_number(like)} | 💬 弹幕: {format_number(danmaku)}\n"
-        if desc:
-            response += f"📝 简介: {desc}\n"
-        response += f"🔗 链接: {video_url}\n"
 
-        # 发送视频基本信息
-        await bot.send(ev, response)
-
-        # 自动补发热门评论图片，失败不影响后续短视频下载
+        # 自动发送视频信息和热门评论整合图片，失败不影响后续短视频下载
         await send_hot_comments_image(bot, ev, video_info, cookies)
 
         # 检查是否为短视频（5分钟以内），自动下载

@@ -39,6 +39,20 @@ def _format_time(timestamp):
     return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
 
 
+def _format_duration(duration):
+    try:
+        duration = int(duration or 0)
+    except (TypeError, ValueError):
+        duration = 0
+    minutes = duration // 60
+    seconds = duration % 60
+    if minutes >= 60:
+        hours = minutes // 60
+        minutes = minutes % 60
+        return f'{hours}:{minutes:02d}:{seconds:02d}'
+    return f'{minutes}:{seconds:02d}'
+
+
 def _truncate_text(text, max_length):
     text = (text or '').strip()
     if len(text) <= max_length:
@@ -58,12 +72,26 @@ def _load_browser_path():
     return ''
 
 
-def _build_comment_html(video_info, comments):
+def _build_comment_html(video_info, comments, comment_status=''):
     title = html.escape(video_info.get('title') or '未知标题')
     author = html.escape((video_info.get('owner') or {}).get('name') or '未知UP主')
     bvid = html.escape(video_info.get('bvid') or '')
+    cover = html.escape(video_info.get('pic') or '')
+    tname = html.escape(video_info.get('tname') or '未知分区')
+    duration = html.escape(_format_duration(video_info.get('duration')))
+    desc = html.escape(_truncate_text(video_info.get('desc') or '', 96))
+    video_url = html.escape(f"https://www.bilibili.com/video/{video_info.get('bvid') or ''}")
+    stat = video_info.get('stat') or {}
+    view = _format_number(stat.get('view'))
+    like = _format_number(stat.get('like'))
+    coin = _format_number(stat.get('coin'))
+    favorite = _format_number(stat.get('favorite'))
+    danmaku = _format_number(stat.get('danmaku'))
+    reply = _format_number(stat.get('reply'))
     width = int(getattr(config, 'HOT_COMMENTS_RENDER_WIDTH', 760))
     max_text_length = int(getattr(config, 'HOT_COMMENTS_MAX_TEXT_LENGTH', 280))
+
+    cover_html = f'<img class="cover" src="{cover}" alt="">' if cover else '<div class="cover cover-fallback">Bilibili</div>'
 
     comment_items = []
     for index, comment in enumerate(comments, start=1):
@@ -96,7 +124,13 @@ def _build_comment_html(video_info, comments):
         </article>
         """)
 
-    comments_html = '\n'.join(comment_items)
+    if comment_items:
+        comments_html = '\n'.join(comment_items)
+        comments_title = f'热门评论 Top {len(comments)}'
+    else:
+        status = html.escape(comment_status or '暂无可展示评论')
+        comments_title = '热门评论'
+        comments_html = f'<div class="empty-comments">{status}</div>'
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -125,9 +159,31 @@ def _build_comment_html(video_info, comments):
       box-shadow: 0 10px 30px rgba(22, 28, 45, 0.08);
     }}
     .header {{
-      padding: 22px 26px 18px;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 20px;
+      padding: 22px 24px;
       border-bottom: 1px solid #edf0f5;
       background: #fbfcff;
+    }}
+    .cover {{
+      width: 220px;
+      height: 138px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #edf0f5;
+      border: 1px solid #e5e7ee;
+    }}
+    .cover-fallback {{
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: #00a1d6;
+      font-weight: 800;
+      font-size: 20px;
+    }}
+    .video-info {{
+      min-width: 0;
     }}
     .eyebrow {{
       font-size: 13px;
@@ -143,6 +199,13 @@ def _build_comment_html(video_info, comments):
       margin-bottom: 10px;
       overflow-wrap: anywhere;
     }}
+    .desc {{
+      color: #697386;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 8px 0 12px;
+      overflow-wrap: anywhere;
+    }}
     .sub {{
       display: flex;
       gap: 14px;
@@ -150,8 +213,47 @@ def _build_comment_html(video_info, comments):
       font-size: 13px;
       color: #697386;
     }}
+    .stats {{
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 14px;
+    }}
+    .stat {{
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid #edf0f5;
+      border-radius: 8px;
+      background: #fff;
+    }}
+    .stat-label {{
+      color: #8a93a6;
+      font-size: 12px;
+      margin-bottom: 3px;
+    }}
+    .stat-value {{
+      color: #171a21;
+      font-weight: 800;
+      font-size: 15px;
+    }}
+    .section-title {{
+      padding: 16px 24px 8px;
+      font-size: 16px;
+      font-weight: 800;
+      color: #171a21;
+    }}
     .list {{
       padding: 6px 0;
+    }}
+    .empty-comments {{
+      margin: 14px 24px 22px;
+      padding: 22px;
+      border: 1px dashed #d8ddea;
+      border-radius: 8px;
+      color: #8a93a6;
+      background: #fbfcff;
+      text-align: center;
+      font-size: 14px;
     }}
     .comment {{
       display: grid;
@@ -231,24 +333,39 @@ def _build_comment_html(video_info, comments):
 <body>
   <main class="comments-shell">
     <section class="header">
-      <div class="eyebrow">Bilibili 热门评论 Top {len(comments)}</div>
-      <div class="title">{title}</div>
-      <div class="sub">
-        <span>UP 主：{author}</span>
-        <span>{bvid}</span>
+      {cover_html}
+      <div class="video-info">
+        <div class="eyebrow">Bilibili 视频解析</div>
+        <div class="title">{title}</div>
+        <div class="sub">
+          <span>UP 主：{author}</span>
+          <span>分区：{tname}</span>
+          <span>时长：{duration}</span>
+          <span>{bvid}</span>
+        </div>
+        <div class="desc">{desc}</div>
+        <div class="stats">
+          <div class="stat"><div class="stat-label">播放</div><div class="stat-value">{view}</div></div>
+          <div class="stat"><div class="stat-label">点赞</div><div class="stat-value">{like}</div></div>
+          <div class="stat"><div class="stat-label">评论</div><div class="stat-value">{reply}</div></div>
+          <div class="stat"><div class="stat-label">弹幕</div><div class="stat-value">{danmaku}</div></div>
+          <div class="stat"><div class="stat-label">投币</div><div class="stat-value">{coin}</div></div>
+          <div class="stat"><div class="stat-label">收藏</div><div class="stat-value">{favorite}</div></div>
+        </div>
       </div>
     </section>
+    <section class="section-title">{comments_title}</section>
     <section class="list">
       {comments_html}
     </section>
-    <section class="footer">评论来自 bilibili 视频评论区，按接口热门排序展示</section>
+    <section class="footer">{video_url} · 评论来自 bilibili 视频评论区，按接口热门排序展示</section>
   </main>
 </body>
 </html>"""
 
 
-async def render_hot_comments_image(video_info, comments):
-    """把热门评论渲染为图片，成功返回图片路径，失败返回None。"""
+async def render_hot_comments_image(video_info, comments, comment_status=''):
+    """把视频信息和热门评论渲染为图片，成功返回图片路径，失败返回None。"""
     if not PLAYWRIGHT_AVAILABLE:
         return None
 
@@ -258,7 +375,7 @@ async def render_hot_comments_image(video_info, comments):
     image_path = os.path.join(work_dir, 'comments.png')
 
     with open(html_path, 'w', encoding='utf-8') as f:
-        f.write(_build_comment_html(video_info, comments))
+        f.write(_build_comment_html(video_info, comments, comment_status=comment_status))
 
     browser_path = _load_browser_path()
     browser = None
