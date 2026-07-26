@@ -4,3 +4,4 @@ pillow>=9.0.0
 requests>=2.27.1
 deepseek-ai>=0.1.0
 ffmpeg-python>=0.2.0
+playwright>=1.40.0

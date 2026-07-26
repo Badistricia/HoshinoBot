@@ -44,5 +44,6 @@ peony-twitter[all]>=2.1.2
 
 # Module specific dependencies
 html2image>=2.0.1
+playwright>=1.40.0
 python-dateutil>=2.8.2
 apscheduler>=3.9.1

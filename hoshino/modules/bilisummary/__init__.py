@@ -1,10 +1,11 @@
 import os
 import re
-import asyncio
 from hoshino import Service
-from hoshino.typing import CQEvent
-from .bilibili_api import extract_video_id_async, get_video_info, get_video_subtitle, load_cookies
+from hoshino.typing import CQEvent, MessageSegment
+from . import config
+from .bilibili_api import extract_video_id_async, get_video_info, get_video_subtitle, get_video_hot_comments, load_cookies
 from .ai_summary import generate_summary
+from .hot_comments_renderer import render_hot_comments_image
 from .video_downloader import VideoDownloader
 
 sv = Service('bilisummary', help_='B站视频解析和摘要\n自动识别B站链接（包括小程序）发送基本信息\n5分钟以内短视频自动下载\n回复"B站解析"或"AI总结"可获取AI摘要', enable_on_default=True)
@@ -101,6 +102,58 @@ def extract_miniprogram_bilibili_url(msg):
     
     return None
 
+def format_number(num):
+    """格式化展示数字。"""
+    try:
+        num = int(num or 0)
+    except (TypeError, ValueError):
+        return '0'
+    if num >= 10000:
+        return f"{num/10000:.1f}万"
+    return str(num)
+
+def format_duration(duration):
+    """把秒数转换为时长文本。"""
+    duration = int(duration or 0)
+    minutes = duration // 60
+    seconds = duration % 60
+    if minutes >= 60:
+        hours = minutes // 60
+        minutes = minutes % 60
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"
+
+async def send_hot_comments_image(bot, ev: CQEvent, video_info, cookies):
+    """获取并发送热门评论图片。"""
+    if not getattr(config, 'ENABLE_HOT_COMMENTS', True):
+        return
+
+    try:
+        result = await get_video_hot_comments(
+            video_info,
+            cookies=cookies,
+            limit=getattr(config, 'HOT_COMMENTS_LIMIT', 10),
+        )
+        if not result.get('ok'):
+            sv.logger.info(f"热门评论获取失败: {result.get('message')}")
+            if not getattr(config, 'HOT_COMMENTS_FAIL_SILENTLY', True):
+                await bot.send(ev, f"热门评论获取失败: {result.get('message')}")
+            return
+
+        image_path = await render_hot_comments_image(video_info, result.get('comments') or [])
+        if not image_path:
+            sv.logger.warning("热门评论图片生成失败")
+            if not getattr(config, 'HOT_COMMENTS_FAIL_SILENTLY', True):
+                await bot.send(ev, "热门评论图片生成失败")
+            return
+
+        image_uri = image_path.replace(os.sep, '/')
+        await bot.send(ev, MessageSegment.image(f"file:///{image_uri}"))
+    except Exception as e:
+        sv.logger.error(f"发送热门评论图片失败: {e}")
+        if not getattr(config, 'HOT_COMMENTS_FAIL_SILENTLY', True):
+            await bot.send(ev, f"热门评论图片发送失败: {e}")
+
 async def auto_download_short_video(bot, ev: CQEvent, video_id: str, title: str, duration_str: str):
     """自动下载短视频的辅助函数"""
     try:
@@ -147,7 +200,6 @@ async def auto_download_short_video(bot, ev: CQEvent, video_id: str, title: str,
                 file_size_mb = os.path.getsize(video_file) / (1024 * 1024)
                 
                 # 构建CQ码发送视频
-                from hoshino.typing import MessageSegment
                 video_msg = MessageSegment.video(f"file:///{video_file}")
                 
                 # 发送视频消息
@@ -183,8 +235,6 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
     
     # 检查是否包含B站链接（普通链接或小程序）
     video_id = None
-    is_miniprogram = False
-    
     # 先检查普通B站链接
     if BILIBILI_URL_PATTERN.search(plain_msg) or 'b23.tv' in plain_msg:
         video_id = await extract_video_id_async(plain_msg)
@@ -194,11 +244,65 @@ async def auto_bilibili_parse(bot, ev: CQEvent):
         miniprogram_url = extract_miniprogram_bilibili_url(msg)
         if miniprogram_url:
             video_id = await extract_video_id_async(miniprogram_url)
-            is_miniprogram = True
     
     if not video_id:
         return
-        
+
+    try:
+        # 尝试加载cookies
+        cookies = load_cookies()
+        if not cookies:
+            await bot.send(ev, '检测到B站链接，但未登录B站账号。\n发送"b站设置cookie"手动设置Cookie（推荐），或发送"b站帮助"查看使用说明。')
+            return
+
+        # 获取视频信息
+        video_info = await get_video_info(video_id, cookies)
+        if not video_info:
+            await bot.send(ev, '获取视频信息失败，可能需要重新登录B站账号')
+            return
+
+        # 获取视频基本信息
+        title = video_info.get('title', '未知标题')
+        author = video_info.get('owner', {}).get('name', '未知UP主')
+        duration = video_info.get('duration', 0)
+        desc = video_info.get('desc', '')[:50] + '...' if len(video_info.get('desc', '')) > 50 else video_info.get('desc', '')
+        bvid = video_info.get('bvid', '')
+        video_url = f"https://www.bilibili.com/video/{bvid}"
+
+        # 获取统计信息
+        stat = video_info.get('stat', {})
+        view = stat.get('view', 0)
+        like = stat.get('like', 0)
+        danmaku = stat.get('danmaku', 0)
+
+        # 获取视频分区信息
+        tname = video_info.get('tname', '未知分区')
+
+        # 构建视频基本信息文本（不包含AI摘要）
+        duration_str = format_duration(duration)
+        response = f"📺 {title}\n"
+        response += f"👤 UP主: {author}\n"
+        response += f"📂 分区: {tname}\n"
+        response += f"⏱️ 时长: {duration_str}\n"
+        response += f"👀 播放: {format_number(view)} | 👍 点赞: {format_number(like)} | 💬 弹幕: {format_number(danmaku)}\n"
+        if desc:
+            response += f"📝 简介: {desc}\n"
+        response += f"🔗 链接: {video_url}\n"
+
+        # 发送视频基本信息
+        await bot.send(ev, response)
+
+        # 自动补发热门评论图片，失败不影响后续短视频下载
+        await send_hot_comments_image(bot, ev, video_info, cookies)
+
+        # 检查是否为短视频（5分钟以内），自动下载
+        if duration <= 300:
+            await auto_download_short_video(bot, ev, video_id, title, duration_str)
+
+    except Exception as e:
+        sv.logger.error(f'解析B站链接失败: {str(e)}')
+        await bot.send(ev, f'解析B站链接失败: {str(e)}')
+
 # 定时清理临时视频文件（每天凌晨4:00执行）
 @sv.scheduled_job('cron', hour='4', minute='0')
 async def scheduled_temp_cleanup():
@@ -218,77 +322,15 @@ async def scheduled_temp_cleanup():
             # 这里假设主要是 temp_videos 占用空间
     except Exception as e:
         sv.logger.error(f'清理临时视频目录失败: {e}')
-    
+
     try:
-        # 尝试加载cookies
-        cookies = load_cookies()
-        if not cookies:
-            # 如果没有cookies，提示用户登录
-            await bot.send(ev, '检测到B站链接，但未登录B站账号。\n发送"b站设置cookie"手动设置Cookie（推荐），或发送"b站帮助"查看使用说明。')
-            return
-        
-        # 获取视频信息
-        video_info = await get_video_info(video_id, cookies)
-        if not video_info:
-            await bot.send(ev, '获取视频信息失败，可能需要重新登录B站账号')
-            return
-        
-        # 获取视频基本信息
-        title = video_info.get('title', '未知标题')
-        author = video_info.get('owner', {}).get('name', '未知UP主')
-        duration = video_info.get('duration', 0)
-        desc = video_info.get('desc', '')[:50] + '...' if len(video_info.get('desc', '')) > 50 else video_info.get('desc', '')
-        bvid = video_info.get('bvid', '')
-        video_url = f"https://www.bilibili.com/video/{bvid}"
-        
-        # 获取统计信息
-        stat = video_info.get('stat', {})
-        view = stat.get('view', 0)  # 播放量
-        like = stat.get('like', 0)  # 点赞数
-        coin = stat.get('coin', 0)  # 投币数
-        favorite = stat.get('favorite', 0)  # 收藏数
-        danmaku = stat.get('danmaku', 0)  # 弹幕数
-        
-        # 获取视频分区信息
-        tname = video_info.get('tname', '未知分区')
-        
-        # 格式化数字
-        def format_number(num):
-            if num >= 10000:
-                return f"{num/10000:.1f}万"
-            return str(num)
-        
-        # 转换时长格式
-        minutes = duration // 60
-        seconds = duration % 60
-        duration_str = f"{minutes}:{seconds:02d}"
-        if minutes >= 60:
-            hours = minutes // 60
-            minutes = minutes % 60
-            duration_str = f"{hours}:{minutes:02d}:{seconds:02d}"
-        
-        # 构建视频基本信息文本（不包含AI摘要）
-        response = f"📺 {title}\n"
-        response += f"👤 UP主: {author}\n"
-        response += f"📂 分区: {tname}\n"
-        response += f"⏱️ 时长: {duration_str}\n"
-        response += f"👀 播放: {format_number(view)} | 👍 点赞: {format_number(like)} | 💬 弹幕: {format_number(danmaku)}\n"
-        if desc:
-            response += f"📝 简介: {desc}\n"
-        response += f"🔗 链接: {video_url}\n"
-        
-        response += "\n"
-        
-        # 发送视频基本信息
-        await bot.send(ev, response)
-        
-        # 检查是否为短视频（5分钟以内），自动下载
-        if duration <= 300:  # 5分钟 = 300秒
-            await auto_download_short_video(bot, ev, video_id, title, duration_str)
-        
+        comments_dir = os.path.join(os.path.dirname(__file__), 'temp_comments')
+        if os.path.exists(comments_dir):
+            shutil.rmtree(comments_dir)
+            os.makedirs(comments_dir, exist_ok=True)
+            sv.logger.info(f'已清理临时评论图片目录: {comments_dir}')
     except Exception as e:
-        sv.logger.error(f'解析B站链接失败: {str(e)}')
-        await bot.send(ev, f'解析B站链接失败: {str(e)}')
+        sv.logger.error(f'清理临时评论图片目录失败: {e}')
 
 @sv.on_keyword(('B站解析', 'b站解析', 'AI总结', 'ai总结', '总结', '摘要'))
 async def bilibili_summary_reply(bot, ev: CQEvent):
@@ -649,7 +691,6 @@ async def video_download_handler(bot, ev: CQEvent):
                     file_size_mb = os.path.getsize(video_file) / (1024 * 1024)
                     
                     # 构建CQ码发送视频
-                    from hoshino.typing import MessageSegment
                     video_msg = MessageSegment.video(f"file:///{video_file}")
                     
                     await bot.send(ev, f'✅ 视频下载完成！\n📺 {title}\n📁 文件大小: {file_size_mb:.2f}MB')

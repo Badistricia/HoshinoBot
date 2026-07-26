@@ -372,6 +372,100 @@ async def get_video_info(video_id, cookies=None):
         safe_print(f"获取视频信息出错: {e}")
         return None
 
+def _build_headers(cookies=None):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Referer': 'https://www.bilibili.com',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+    }
+    if cookies:
+        headers['Cookie'] = '; '.join([f"{k}={v}" for k, v in cookies.items()])
+    return headers
+
+def _normalize_reply(reply):
+    member = reply.get('member') or {}
+    content = reply.get('content') or {}
+    return {
+        'rpid': reply.get('rpid'),
+        'floor': reply.get('floor') or 0,
+        'ctime': reply.get('ctime') or 0,
+        'like': reply.get('like') or 0,
+        'reply_count': reply.get('rcount') or reply.get('count') or 0,
+        'uname': member.get('uname') or '未知用户',
+        'avatar': member.get('avatar') or '',
+        'message': content.get('message') or '',
+    }
+
+async def get_video_hot_comments(video_info, cookies=None, limit=10):
+    """获取视频热门评论，返回标准化结果。"""
+    try:
+        if not video_info:
+            return {'ok': False, 'message': '缺少视频信息', 'comments': []}
+
+        aid = video_info.get('aid')
+        if not aid:
+            return {'ok': False, 'message': '视频信息缺少aid，无法获取评论', 'comments': []}
+
+        limit = max(1, min(int(limit or 10), 20))
+        main_params = {
+            'type': 1,      # 视频评论区
+            'oid': aid,
+            'mode': 3,      # 热门排序
+            'ps': limit,
+            'next': 0,
+        }
+        fallback_params = {
+            'type': 1,
+            'oid': aid,
+            'sort': 2,      # 热度排序
+            'ps': limit,
+            'pn': 1,
+        }
+        headers = _build_headers(cookies)
+        last_message = ''
+
+        async with aiohttp.ClientSession() as session:
+            for endpoint, params in (
+                ('https://api.bilibili.com/x/v2/reply/main', main_params),
+                ('https://api.bilibili.com/x/v2/reply', fallback_params),
+            ):
+                api_url = f"{endpoint}?{urlencode(params)}"
+                async with session.get(api_url, headers=headers, timeout=10) as resp:
+                    if resp.status != 200:
+                        last_message = f'评论接口HTTP错误: {resp.status}'
+                        continue
+
+                    res = await resp.json(content_type=None)
+
+                if res.get('code') != 0:
+                    last_message = res.get('message') or res.get('msg') or '评论接口返回错误'
+                    continue
+
+                data = res.get('data') or {}
+                replies = data.get('top_replies') or []
+                if not replies:
+                    replies = data.get('replies') or []
+
+                comments = []
+                for reply in replies:
+                    item = _normalize_reply(reply)
+                    if item['message']:
+                        comments.append(item)
+                    if len(comments) >= limit:
+                        break
+
+                if comments:
+                    return {'ok': True, 'message': 'ok', 'comments': comments}
+
+        return {'ok': False, 'message': last_message or '该视频暂无可展示评论', 'comments': []}
+    except asyncio.TimeoutError:
+        return {'ok': False, 'message': '评论接口请求超时', 'comments': []}
+    except Exception as e:
+        safe_print(f"获取热门评论出错: {e}")
+        safe_print(traceback.format_exc())
+        return {'ok': False, 'message': f'获取热门评论出错: {e}', 'comments': []}
+
 async def get_video_subtitle(video_id, cookies=None):
     """获取B站视频字幕"""
     try:
