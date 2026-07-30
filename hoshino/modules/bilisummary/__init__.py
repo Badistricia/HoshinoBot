@@ -3,7 +3,7 @@ import re
 import asyncio
 from hoshino import Service
 from hoshino.typing import CQEvent
-from .bilibili_api import extract_video_id_async, get_video_info, get_video_subtitle, load_cookies
+from .bilibili_api import extract_video_id_async, get_video_comments, get_video_info, get_video_subtitle, load_cookies
 from .ai_summary import generate_summary
 
 sv = Service('bilisummary', help_='B站视频解析和摘要\n自动识别B站链接（包括小程序）发送基本信息\n回复"B站解析"或"AI总结"可获取AI摘要', enable_on_default=True)
@@ -247,9 +247,10 @@ async def bilibili_summary_reply(bot, ev: CQEvent):
             return
         
         subtitle_text = await get_video_subtitle(video_id, cookies)
+        comments_text = await get_video_comments(video_info, cookies)
         
         # 生成摘要
-        summary = await generate_summary(video_info, subtitle_text)
+        summary = await generate_summary(video_info, subtitle_text, comments=comments_text)
         
         if summary:
             # 格式化输出
@@ -307,9 +308,10 @@ async def bilibili_summary_command(bot, ev: CQEvent):
         
         # 获取字幕
         subtitle_text = await get_video_subtitle(video_id, cookies)
+        comments_text = await get_video_comments(video_info, cookies)
         
         # 生成摘要
-        summary = await generate_summary(video_info, subtitle_text)
+        summary = await generate_summary(video_info, subtitle_text, comments=comments_text)
         
         if summary:
             # 格式化输出

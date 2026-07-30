@@ -412,6 +412,121 @@ async def get_video_info(video_id, cookies=None):
         print(f"获取视频信息出错: {e}")
         return None
 
+def _format_reply(reply, prefix=""):
+    """格式化评论内容"""
+    member = reply.get('member', {})
+    content = reply.get('content', {})
+    uname = member.get('uname', '未知用户')
+    message = content.get('message', '').replace('\n', ' ').strip()
+    like = reply.get('like', 0)
+    if not message:
+        return ""
+    return f"{prefix}@{uname}（{like}赞）：{message}"
+
+async def get_video_comments(video_info, cookies=None, main_limit=5, child_limit=2):
+    """获取视频热门评论和楼中楼回复"""
+    try:
+        aid = video_info.get('aid')
+        if not aid:
+            return ""
+
+        bvid = video_info.get('bvid', '')
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Referer': f"https://www.bilibili.com/video/{bvid}" if bvid else 'https://www.bilibili.com'
+        }
+
+        if cookies:
+            headers['Cookie'] = '; '.join([f"{k}={v}" for k, v in cookies.items()])
+
+        main_limit = max(1, min(main_limit, 20))
+        child_limit = max(0, min(child_limit, 20))
+        params = {
+            'type': 1,
+            'oid': aid,
+            'mode': 3,
+            'ps': main_limit
+        }
+
+        async with aiohttp.ClientSession() as session:
+            api_url = f"https://api.bilibili.com/x/v2/reply/main?{urlencode(params)}"
+            async with session.get(api_url, headers=headers) as resp:
+                res = await resp.json()
+
+            if res.get('code') != 0:
+                print(f"[评论] 获取主评论失败: {res.get('message', '未知错误')}")
+                replies = []
+            else:
+                replies = (res.get('data') or {}).get('replies') or []
+
+            if not replies:
+                old_params = {
+                    'type': 1,
+                    'oid': aid,
+                    'sort': 1,
+                    'ps': main_limit,
+                    'pn': 1,
+                    'nohot': 1
+                }
+                old_url = f"https://api.bilibili.com/x/v2/reply?{urlencode(old_params)}"
+                async with session.get(old_url, headers=headers) as resp:
+                    old_res = await resp.json()
+                if old_res.get('code') == 0:
+                    replies = (old_res.get('data') or {}).get('replies') or []
+
+            if not replies:
+                hot_params = {
+                    'type': 1,
+                    'oid': aid,
+                    'ps': main_limit,
+                    'pn': 1
+                }
+                hot_url = f"https://api.bilibili.com/x/v2/reply/hot?{urlencode(hot_params)}"
+                async with session.get(hot_url, headers=headers) as resp:
+                    hot_res = await resp.json()
+                if hot_res.get('code') == 0:
+                    replies = (hot_res.get('data') or {}).get('replies') or []
+
+            if not replies:
+                print("[评论] 未获取到评论")
+                return ""
+
+            lines = []
+            for index, reply in enumerate(replies[:main_limit], 1):
+                main_text = _format_reply(reply, f"{index}. ")
+                if main_text:
+                    lines.append(main_text)
+
+                child_replies = list((reply.get('replies') or [])[:child_limit])
+                if child_limit and len(child_replies) < child_limit and reply.get('rpid') and reply.get('rcount', 0) > len(child_replies):
+                    child_params = {
+                        'type': 1,
+                        'oid': aid,
+                        'root': reply.get('rpid'),
+                        'ps': child_limit,
+                        'pn': 1
+                    }
+                    child_url = f"https://api.bilibili.com/x/v2/reply/reply?{urlencode(child_params)}"
+                    async with session.get(child_url, headers=headers) as resp:
+                        child_res = await resp.json()
+                    if child_res.get('code') == 0:
+                        exists = {item.get('rpid') for item in child_replies}
+                        for item in (child_res.get('data') or {}).get('replies') or []:
+                            if item.get('rpid') not in exists:
+                                child_replies.append(item)
+                            if len(child_replies) >= child_limit:
+                                break
+
+                for child_index, child_reply in enumerate(child_replies[:child_limit], 2):
+                    child_text = _format_reply(child_reply, f"   {child_index}楼 ")
+                    if child_text:
+                        lines.append(child_text)
+
+            return "\n".join(lines)
+    except Exception as e:
+        print(f"[评论] 获取评论出错: {e}")
+        return ""
+
 async def get_video_subtitle(video_id, cookies=None):
     """获取B站视频字幕"""
     try:
