@@ -50,7 +50,7 @@ def load_config():
     
     return default_config
 
-async def generate_summary(video_info, subtitle=None, max_length=1000):
+async def generate_summary(video_info, subtitle=None, max_length=1000, comments=None):
     """生成视频摘要"""
     config = load_config()
     client = ai_client.get_client(config)
@@ -76,11 +76,25 @@ async def generate_summary(video_info, subtitle=None, max_length=1000):
             subtitle_text = f"{first_part}\n...(中间内容省略)...\n{middle_part}\n...(中间内容省略)...\n{last_part}"
         else:
             subtitle_text = subtitle
-        
+
         user_prompt += f"\n字幕内容：\n{subtitle_text}"
-        user_prompt += "\n\n请根据视频标题、描述和字幕内容，生成一个全面、客观的视频内容摘要，包括主要观点、关键信息和结论。摘要应该简洁明了，不超过500字。"
     else:
-        user_prompt += "\n\n【注意：该视频没有字幕】\n请仅根据视频标题和描述，尝试推测视频可能的内容，并生成一个简短的摘要。请在摘要开头明确说明'由于视频没有字幕，此摘要仅基于标题和描述推测'。摘要不超过300字。"
+        user_prompt += "\n\n【注意：该视频没有字幕】"
+
+    if comments and comments.strip():
+        comments_text = comments.strip()
+        if len(comments_text) > 2000:
+            comments_text = comments_text[:2000] + "\n...(评论内容省略)..."
+        user_prompt += f"\n\n热门评论和楼中楼回复：\n{comments_text}"
+
+    if subtitle and subtitle.strip() and comments and comments.strip():
+        user_prompt += "\n\n请根据视频标题、描述、字幕内容和热门评论，生成一个全面、客观的视频内容摘要，包括主要观点、关键信息、结论和观众反馈。摘要应该简洁明了，不超过500字。"
+    elif subtitle and subtitle.strip():
+        user_prompt += "\n\n请根据视频标题、描述和字幕内容，生成一个全面、客观的视频内容摘要，包括主要观点、关键信息和结论。摘要应该简洁明了，不超过500字。"
+    elif comments and comments.strip():
+        user_prompt += "\n\n请根据视频标题、描述和热门评论，尝试推测视频可能的内容，并生成一个简短摘要。请在摘要开头明确说明'由于视频没有字幕，此摘要结合标题、描述和热门评论推测'。摘要不超过300字。"
+    else:
+        user_prompt += "\n请仅根据视频标题和描述，尝试推测视频可能的内容，并生成一个简短的摘要。请在摘要开头明确说明'由于视频没有字幕，此摘要仅基于标题和描述推测'。摘要不超过300字。"
     
     try:
         # 调用DeepSeek API
@@ -101,9 +115,9 @@ async def generate_summary(video_info, subtitle=None, max_length=1000):
     except Exception as e:
         safe_print(f"生成摘要出错: {e}")
         # 生成简单摘要作为备选
-        return generate_simple_summary(video_info, subtitle)
+        return generate_simple_summary(video_info, subtitle, comments)
 
-def generate_simple_summary(video_info, subtitle=None):
+def generate_simple_summary(video_info, subtitle=None, comments=None):
     """生成简单摘要（当API调用失败时使用）"""
     title = video_info.get('title', '未知标题')
     author = video_info.get('owner', {}).get('name', '未知作者')
@@ -124,5 +138,8 @@ def generate_simple_summary(video_info, subtitle=None):
             summary += f"字幕内容：{subtitle_content}..."
     else:
         summary += "（该视频没有字幕）"
-    
+
+    if comments:
+        summary += f"\n\n热门评论摘录：\n{comments[:500]}"
+
     return summary

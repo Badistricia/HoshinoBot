@@ -466,6 +466,97 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10):
         safe_print(traceback.format_exc())
         return {'ok': False, 'message': f'获取热门评论出错: {e}', 'comments': []}
 
+def _format_summary_comment(comment, prefix=""):
+    message = (comment.get('message') or '').replace('\n', ' ').strip()
+    if not message:
+        return ""
+    uname = comment.get('uname') or '未知用户'
+    like = comment.get('like') or 0
+    return f"{prefix}@{uname}（{like}赞）：{message}"
+
+async def get_video_comments(video_info, cookies=None, main_limit=5, child_limit=2):
+    """获取摘要用的热门评论和楼中楼回复文本。"""
+    try:
+        if not video_info:
+            return ""
+
+        aid = video_info.get('aid')
+        if not aid:
+            return ""
+
+        main_limit = max(1, min(int(main_limit or 5), 20))
+        child_limit = max(0, min(int(child_limit or 2), 20))
+        headers = _build_headers(cookies)
+        if video_info.get('bvid'):
+            headers['Referer'] = f"https://www.bilibili.com/video/{video_info.get('bvid')}"
+        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+        lines = []
+        async with aiohttp.ClientSession() as session:
+            main_params = {
+                'type': 1,
+                'oid': aid,
+                'mode': 3,
+                'ps': main_limit,
+                'next': 0,
+            }
+            main_url = f"https://api.bilibili.com/x/v2/reply/main?{urlencode(main_params)}"
+            async with session.get(main_url, headers=headers, timeout=10) as resp:
+                if resp.status != 200:
+                    return ""
+                main_res = await resp.json(content_type=None)
+
+            if main_res.get('code') != 0:
+                return ""
+
+            comments = []
+            for reply in (main_res.get('data') or {}).get('replies') or []:
+                item = _normalize_reply(reply)
+                if item['message']:
+                    comments.append(item)
+                if len(comments) >= main_limit:
+                    break
+
+            if not comments:
+                return ""
+
+            for index, comment in enumerate(comments[:main_limit], 1):
+                main_text = _format_summary_comment(comment, f"{index}. ")
+                if main_text:
+                    lines.append(main_text)
+
+                if child_limit <= 0 or not comment.get('rpid') or comment.get('reply_count', 0) <= 0:
+                    continue
+
+                child_params = {
+                    'type': 1,
+                    'oid': aid,
+                    'root': comment.get('rpid'),
+                    'ps': child_limit,
+                    'pn': 1
+                }
+                child_url = f"https://api.bilibili.com/x/v2/reply/reply?{urlencode(child_params)}"
+                async with session.get(child_url, headers=headers, timeout=10) as resp:
+                    if resp.status != 200:
+                        continue
+                    child_res = await resp.json(content_type=None)
+
+                if child_res.get('code') != 0:
+                    continue
+
+                child_replies = (child_res.get('data') or {}).get('replies') or []
+                for child_index, child_reply in enumerate(child_replies[:child_limit], 2):
+                    child_text = _format_summary_comment(_normalize_reply(child_reply), f"   {child_index}楼 ")
+                    if child_text:
+                        lines.append(child_text)
+
+        return "\n".join(lines)
+    except asyncio.TimeoutError:
+        return ""
+    except Exception as e:
+        safe_print(f"获取摘要评论出错: {e}")
+        safe_print(traceback.format_exc())
+        return ""
+
 async def get_video_subtitle(video_id, cookies=None):
     """获取B站视频字幕"""
     try:
