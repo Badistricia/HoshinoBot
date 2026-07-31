@@ -92,9 +92,16 @@ async def extract_video_id_async(text):
     return None
 
 # WBI签名相关函数
+MIXIN_KEY_ENC_TAB = [
+    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
+    27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
+    37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
+    22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
+]
+
 def get_mixin_key(orig: str) -> str:
     """获取WBI签名的混合密钥"""
-    return hashlib.md5(orig.encode()).hexdigest()
+    return ''.join(orig[i] for i in MIXIN_KEY_ENC_TAB)[:32]
 
 async def get_wbi_keys(cookies=None):
     """获取最新的WBI签名密钥"""
@@ -111,7 +118,7 @@ async def get_wbi_keys(cookies=None):
         async with aiohttp.ClientSession() as session:
             async with session.get('https://api.bilibili.com/x/web-interface/nav', headers=headers) as resp:
                 res = await resp.json()
-                if res['code'] != 0:
+                if res['code'] != 0 and not res.get('data', {}).get('wbi_img'):
                     safe_print(f"获取WBI密钥失败: {res['message']}")
                     return None, None
                     
@@ -135,21 +142,22 @@ def encrypt_wbi(params: dict, img_key: str, sub_key: str) -> dict:
     # 按照key排序
     params = dict(sorted(params.items()))
     
-    # 过滤一些key
-    filtered_params = {
-        k: params[k] for k in params
-        if k not in ["sign", "wts"]
-    }
+    # 过滤特殊字符
+    filtered_params = {}
+    for k, v in params.items():
+        if k == "w_rid":
+            continue
+        filtered_params[k] = re.sub(r"[!'()*]", "", str(v))
     
     # 拼接参数
     query = urlencode(filtered_params)
     
     # 计算签名
     wbi_sign = hashlib.md5((query + mixin_key).encode()).hexdigest()
-    
+
     # 添加签名
-    params['sign'] = wbi_sign
-    
+    params['w_rid'] = wbi_sign
+
     return params
 
 # 扫码登录相关函数
@@ -395,9 +403,10 @@ def _normalize_reply(reply):
         'uname': member.get('uname') or '未知用户',
         'avatar': member.get('avatar') or '',
         'message': content.get('message') or '',
+        'replies': [_normalize_reply(item) for item in (reply.get('replies') or [])],
     }
 
-async def get_video_hot_comments(video_info, cookies=None, limit=10):
+async def get_video_hot_comments(video_info, cookies=None, limit=10, child_limit=2):
     """获取视频热门评论，返回标准化结果。"""
     try:
         if not video_info:
@@ -408,12 +417,15 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10):
             return {'ok': False, 'message': '视频信息缺少aid，无法获取评论', 'comments': []}
 
         limit = max(1, min(int(limit or 10), 20))
-        main_params = {
+        child_limit = max(0, min(int(child_limit or 2), 20))
+        wbi_params = {
             'type': 1,      # 视频评论区
             'oid': aid,
             'mode': 3,      # 热门排序
+            'pagination_str': '{"offset":""}',
+            'plat': 1,
+            'web_location': 1315875,
             'ps': limit,
-            'next': 0,
         }
         fallback_params = {
             'type': 1,
@@ -423,13 +435,19 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10):
             'pn': 1,
         }
         headers = _build_headers(cookies)
+        if video_info.get('bvid'):
+            headers['Referer'] = f"https://www.bilibili.com/video/{video_info.get('bvid')}"
+        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
         last_message = ''
 
         async with aiohttp.ClientSession() as session:
-            for endpoint, params in (
-                ('https://api.bilibili.com/x/v2/reply/main', main_params),
-                ('https://api.bilibili.com/x/v2/reply', fallback_params),
-            ):
+            img_key, sub_key = await get_wbi_keys(cookies)
+            endpoints = []
+            if img_key and sub_key:
+                endpoints.append(('https://api.bilibili.com/x/v2/reply/wbi/main', encrypt_wbi(wbi_params.copy(), img_key, sub_key)))
+            endpoints.append(('https://api.bilibili.com/x/v2/reply', fallback_params))
+
+            for endpoint, params in endpoints:
                 api_url = f"{endpoint}?{urlencode(params)}"
                 async with session.get(api_url, headers=headers, timeout=10) as resp:
                     if resp.status != 200:
@@ -443,9 +461,9 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10):
                     continue
 
                 data = res.get('data') or {}
-                replies = data.get('top_replies') or []
+                replies = data.get('replies') or []
                 if not replies:
-                    replies = data.get('replies') or []
+                    replies = data.get('top_replies') or []
 
                 comments = []
                 for reply in replies:
@@ -456,6 +474,36 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10):
                         break
 
                 if comments:
+                    if child_limit:
+                        for item in comments:
+                            item['replies'] = item.get('replies', [])[:child_limit]
+                            if len(item['replies']) >= child_limit or not item.get('rpid') or item.get('reply_count', 0) <= 0:
+                                continue
+
+                            child_params = {
+                                'type': 1,
+                                'oid': aid,
+                                'root': item.get('rpid'),
+                                'ps': child_limit,
+                                'pn': 1
+                            }
+                            child_url = f"https://api.bilibili.com/x/v2/reply/reply?{urlencode(child_params)}"
+                            async with session.get(child_url, headers=headers, timeout=10) as child_resp:
+                                if child_resp.status != 200:
+                                    continue
+                                child_res = await child_resp.json(content_type=None)
+
+                            if child_res.get('code') != 0:
+                                continue
+
+                            exists = {reply.get('rpid') for reply in item['replies']}
+                            for child_reply in (child_res.get('data') or {}).get('replies') or []:
+                                child_item = _normalize_reply(child_reply)
+                                if child_item.get('rpid') not in exists and child_item.get('message'):
+                                    item['replies'].append(child_item)
+                                if len(item['replies']) >= child_limit:
+                                    break
+
                     return {'ok': True, 'message': 'ok', 'comments': comments}
 
         return {'ok': False, 'message': last_message or '该视频暂无可展示评论', 'comments': []}
@@ -486,68 +534,21 @@ async def get_video_comments(video_info, cookies=None, main_limit=5, child_limit
 
         main_limit = max(1, min(int(main_limit or 5), 20))
         child_limit = max(0, min(int(child_limit or 2), 20))
-        headers = _build_headers(cookies)
-        if video_info.get('bvid'):
-            headers['Referer'] = f"https://www.bilibili.com/video/{video_info.get('bvid')}"
-        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+        result = await get_video_hot_comments(video_info, cookies=cookies, limit=main_limit, child_limit=child_limit)
+        comments = result.get('comments') or []
+        if not comments:
+            return ""
+
         lines = []
-        async with aiohttp.ClientSession() as session:
-            main_params = {
-                'type': 1,
-                'oid': aid,
-                'mode': 3,
-                'ps': main_limit,
-                'next': 0,
-            }
-            main_url = f"https://api.bilibili.com/x/v2/reply/main?{urlencode(main_params)}"
-            async with session.get(main_url, headers=headers, timeout=10) as resp:
-                if resp.status != 200:
-                    return ""
-                main_res = await resp.json(content_type=None)
+        for index, comment in enumerate(comments[:main_limit], 1):
+            main_text = _format_summary_comment(comment, f"{index}. ")
+            if main_text:
+                lines.append(main_text)
 
-            if main_res.get('code') != 0:
-                return ""
-
-            comments = []
-            for reply in (main_res.get('data') or {}).get('replies') or []:
-                item = _normalize_reply(reply)
-                if item['message']:
-                    comments.append(item)
-                if len(comments) >= main_limit:
-                    break
-
-            if not comments:
-                return ""
-
-            for index, comment in enumerate(comments[:main_limit], 1):
-                main_text = _format_summary_comment(comment, f"{index}. ")
-                if main_text:
-                    lines.append(main_text)
-
-                if child_limit <= 0 or not comment.get('rpid') or comment.get('reply_count', 0) <= 0:
-                    continue
-
-                child_params = {
-                    'type': 1,
-                    'oid': aid,
-                    'root': comment.get('rpid'),
-                    'ps': child_limit,
-                    'pn': 1
-                }
-                child_url = f"https://api.bilibili.com/x/v2/reply/reply?{urlencode(child_params)}"
-                async with session.get(child_url, headers=headers, timeout=10) as resp:
-                    if resp.status != 200:
-                        continue
-                    child_res = await resp.json(content_type=None)
-
-                if child_res.get('code') != 0:
-                    continue
-
-                child_replies = (child_res.get('data') or {}).get('replies') or []
-                for child_index, child_reply in enumerate(child_replies[:child_limit], 2):
-                    child_text = _format_summary_comment(_normalize_reply(child_reply), f"   {child_index}楼 ")
-                    if child_text:
-                        lines.append(child_text)
+            for child_index, child_reply in enumerate((comment.get('replies') or [])[:child_limit], 2):
+                child_text = _format_summary_comment(child_reply, f"   {child_index}楼 ")
+                if child_text:
+                    lines.append(child_text)
 
         return "\n".join(lines)
     except asyncio.TimeoutError:

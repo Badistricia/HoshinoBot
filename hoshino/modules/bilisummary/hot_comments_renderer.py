@@ -101,6 +101,20 @@ def _build_comment_html(video_info, comments, comment_status=''):
         like = _format_number(comment.get('like'))
         reply_count = _format_number(comment.get('reply_count'))
         ctime = _format_time(comment.get('ctime'))
+        child_items = []
+        for child in (comment.get('replies') or [])[:2]:
+            child_uname = html.escape(child.get('uname') or '未知用户')
+            child_message = html.escape(_truncate_text(child.get('message'), 120)).replace('\n', '<br>')
+            child_like = _format_number(child.get('like'))
+            if child_message:
+                child_items.append(f"""
+              <div class="child-reply">
+                <span class="child-name">{child_uname}</span>
+                <span class="child-message">{child_message}</span>
+                <span class="child-meta">赞 {child_like}</span>
+              </div>
+                """)
+        children_html = f'<div class="child-replies">{"".join(child_items)}</div>' if child_items else ''
 
         if avatar:
             avatar_html = f'<img class="avatar" src="{avatar}" alt="">'
@@ -120,6 +134,7 @@ def _build_comment_html(video_info, comments, comment_status=''):
               <div class="meta">{meta}</div>
             </div>
             <div class="message">{message}</div>
+            {children_html}
           </div>
         </article>
         """)
@@ -320,6 +335,38 @@ def _build_comment_html(video_info, comments, comment_status=''):
       color: #2b2f38;
       overflow-wrap: anywhere;
       white-space: normal;
+    }}
+    .child-replies {{
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      background: #f7f9fc;
+      border: 1px solid #edf0f5;
+    }}
+    .child-reply {{
+      display: grid;
+      grid-template-columns: minmax(72px, 120px) 1fr auto;
+      gap: 8px;
+      align-items: start;
+      color: #586176;
+      font-size: 13px;
+      line-height: 1.45;
+    }}
+    .child-name {{
+      color: #44506a;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .child-message {{
+      overflow-wrap: anywhere;
+    }}
+    .child-meta {{
+      color: #9aa3b5;
+      white-space: nowrap;
     }}
     .footer {{
       padding: 12px 24px 16px;
