@@ -141,10 +141,10 @@ def _build_comment_html(video_info, comments, comment_status=''):
 
     if comment_items:
         comments_html = '\n'.join(comment_items)
-        comments_title = f'热门评论 Top {len(comments)}'
+        comments_title = f'高赞评论 Top {len(comments)}'
     else:
         status = html.escape(comment_status or '暂无可展示评论')
-        comments_title = '热门评论'
+        comments_title = '高赞评论'
         comments_html = f'<div class="empty-comments">{status}</div>'
 
     return f"""<!doctype html>
@@ -405,7 +405,7 @@ def _build_comment_html(video_info, comments, comment_status=''):
     <section class="list">
       {comments_html}
     </section>
-    <section class="footer">{video_url} · 评论来自 bilibili 视频评论区，按接口热门排序展示</section>
+    <section class="footer">{video_url} · 评论来自 bilibili 视频评论区，按点赞数排序展示</section>
   </main>
 </body>
 </html>"""

@@ -417,6 +417,7 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10, child_limit
             return {'ok': False, 'message': '视频信息缺少aid，无法获取评论', 'comments': []}
 
         limit = max(1, min(int(limit or 10), 20))
+        fetch_limit = min(max(limit * 2, limit), 20)
         child_limit = max(0, min(int(child_limit or 2), 20))
         wbi_params = {
             'type': 1,      # 视频评论区
@@ -425,13 +426,13 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10, child_limit
             'pagination_str': '{"offset":""}',
             'plat': 1,
             'web_location': 1315875,
-            'ps': limit,
+            'ps': fetch_limit,
         }
         fallback_params = {
             'type': 1,
             'oid': aid,
             'sort': 2,      # 热度排序
-            'ps': limit,
+            'ps': fetch_limit,
             'pn': 1,
         }
         headers = _build_headers(cookies)
@@ -470,10 +471,11 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10, child_limit
                     item = _normalize_reply(reply)
                     if item['message']:
                         comments.append(item)
-                    if len(comments) >= limit:
+                    if len(comments) >= fetch_limit:
                         break
 
                 if comments:
+                    comments = sorted(comments, key=lambda item: item.get('like') or 0, reverse=True)[:limit]
                     if child_limit:
                         for item in comments:
                             item['replies'] = item.get('replies', [])[:child_limit]
