@@ -417,7 +417,7 @@ async def get_video_hot_comments(video_info, cookies=None, limit=10, child_limit
             return {'ok': False, 'message': '视频信息缺少aid，无法获取评论', 'comments': []}
 
         limit = max(1, min(int(limit or 10), 20))
-        fetch_limit = min(max(limit * 2, limit), 20)
+        fetch_limit = 20
         child_limit = max(0, min(int(child_limit or 2), 20))
         wbi_params = {
             'type': 1,      # 视频评论区
